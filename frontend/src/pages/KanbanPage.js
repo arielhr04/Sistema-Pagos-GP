@@ -1,0 +1,607 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+import { toast } from 'sonner';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import { Calendar } from '../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Label } from '../components/ui/label';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { 
+  Search, 
+  FileText, 
+  DollarSign, 
+  Calendar as CalendarIcon,
+  Upload,
+  GripVertical,
+  X,
+  Download
+} from 'lucide-react';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const COLUMNS = [
+  { id: 'Capturada', title: 'Capturada', color: 'border-t-zinc-500' },
+  { id: 'En revisión', title: 'En revisión', color: 'border-t-yellow-500' },
+  { id: 'Programada', title: 'Programada', color: 'border-t-blue-500' },
+  { id: 'Pagada', title: 'Pagada', color: 'border-t-green-500' },
+  { id: 'Rechazada', title: 'Rechazada', color: 'border-t-red-500' },
+];
+
+const getTrafficLight = (fechaVencimiento) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(fechaVencimiento);
+  dueDate.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) return { color: 'red', label: 'Vencida', className: 'traffic-red' };
+  if (diffDays <= 5) return { color: 'red', label: `${diffDays}d`, className: 'traffic-red' };
+  if (diffDays <= 10) return { color: 'yellow', label: `${diffDays}d`, className: 'traffic-yellow' };
+  return { color: 'green', label: `${diffDays}d`, className: 'traffic-green' };
+};
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+    minimumFractionDigits: 0,
+  }).format(value);
+};
+
+// Sortable Invoice Card
+const SortableInvoiceCard = ({ invoice, onClick }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: invoice.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const traffic = invoice.estatus !== 'Pagada' && invoice.estatus !== 'Rechazada'
+    ? getTrafficLight(invoice.fecha_vencimiento)
+    : null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="bg-white rounded-lg border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+      onClick={() => onClick(invoice)}
+      data-testid={`kanban-card-${invoice.id}`}
+    >
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-zinc-100 rounded"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="w-4 h-4 text-zinc-400" />
+          </div>
+          {traffic && (
+            <Badge variant="outline" className={`${traffic.className} text-xs`}>
+              {traffic.label}
+            </Badge>
+          )}
+        </div>
+
+        <h4 className="font-semibold text-zinc-900 text-sm mb-1 line-clamp-1">
+          {invoice.nombre_proveedor}
+        </h4>
+        <p className="text-xs text-zinc-500 font-mono mb-2">
+          {invoice.folio_fiscal}
+        </p>
+        <p className="text-xs text-zinc-500 line-clamp-2 mb-3">
+          {invoice.descripcion_factura}
+        </p>
+
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-zinc-900 font-mono">
+            {formatCurrency(invoice.monto)}
+          </span>
+          <span className="text-xs text-zinc-500">
+            {invoice.fecha_vencimiento.slice(0, 10)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Invoice Card for Drag Overlay
+const InvoiceCardOverlay = ({ invoice }) => {
+  return (
+    <div className="bg-white rounded-lg border border-zinc-200 shadow-xl p-4 w-72 rotate-3">
+      <h4 className="font-semibold text-zinc-900 text-sm mb-1">
+        {invoice.nombre_proveedor}
+      </h4>
+      <p className="text-xs text-zinc-500 font-mono mb-2">
+        {invoice.folio_fiscal}
+      </p>
+      <span className="font-bold text-zinc-900 font-mono">
+        {formatCurrency(invoice.monto)}
+      </span>
+    </div>
+  );
+};
+
+// Droppable Column
+const KanbanColumn = ({ column, invoices, onCardClick }) => {
+  const total = invoices.reduce((sum, inv) => sum + inv.monto, 0);
+
+  return (
+    <div className="flex-shrink-0 w-80">
+      <Card className={`bg-white border border-zinc-200 border-t-4 ${column.color} h-full`}>
+        <CardHeader className="p-4 border-b border-zinc-100 bg-zinc-50/50">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide">
+              {column.title}
+            </CardTitle>
+            <Badge variant="secondary" className="font-mono">
+              {invoices.length}
+            </Badge>
+          </div>
+          <p className="text-xs text-zinc-500 font-mono mt-1">
+            {formatCurrency(total)}
+          </p>
+        </CardHeader>
+        <CardContent className="p-3 space-y-3 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto">
+          <SortableContext
+            items={invoices.map((i) => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {invoices.map((invoice) => (
+              <SortableInvoiceCard
+                key={invoice.id}
+                invoice={invoice}
+                onClick={onCardClick}
+              />
+            ))}
+          </SortableContext>
+          {invoices.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-32 text-zinc-400">
+              <FileText className="w-8 h-8 mb-2" />
+              <p className="text-sm">Sin facturas</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const KanbanPage = () => {
+  const { token, getAuthHeader } = useAuth();
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeId, setActiveId] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [paymentProofFile, setPaymentProofFile] = useState(null);
+  const [paymentDate, setPaymentDate] = useState(null);
+  const [updating, setUpdating] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const fetchInvoices = useCallback(async () => {
+    try {
+      const params = searchTerm ? `?search=${searchTerm}` : '';
+      const response = await axios.get(`${API_URL}/api/invoices${params}`, getAuthHeader());
+      setInvoices(response.data);
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      toast.error('Error al cargar facturas');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, getAuthHeader]);
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchInvoices();
+    }, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [fetchInvoices]);
+
+  const getInvoicesByStatus = (status) => {
+    return invoices.filter((inv) => inv.estatus === status);
+  };
+
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const activeInvoice = invoices.find((i) => i.id === active.id);
+    if (!activeInvoice) return;
+
+    // Find the target column
+    let targetStatus = null;
+    for (const column of COLUMNS) {
+      const columnInvoices = getInvoicesByStatus(column.id);
+      if (columnInvoices.some((i) => i.id === over.id) || over.id === column.id) {
+        targetStatus = column.id;
+        break;
+      }
+    }
+
+    // If dropped in same column or no target, check if it's the column itself
+    if (!targetStatus) {
+      const overColumn = COLUMNS.find((c) => c.id === over.id);
+      if (overColumn) {
+        targetStatus = overColumn.id;
+      }
+    }
+
+    if (!targetStatus || activeInvoice.estatus === targetStatus) return;
+
+    // Update status
+    try {
+      await axios.put(
+        `${API_URL}/api/invoices/${activeInvoice.id}/status`,
+        { nuevo_estatus: targetStatus },
+        getAuthHeader()
+      );
+      toast.success(`Factura movida a "${targetStatus}"`);
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Error al actualizar estatus');
+    }
+  };
+
+  const handleDragOver = (event) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeInvoice = invoices.find((i) => i.id === active.id);
+    const overInvoice = invoices.find((i) => i.id === over.id);
+
+    if (!activeInvoice) return;
+
+    // If over another invoice in same column, reorder
+    if (overInvoice && activeInvoice.estatus === overInvoice.estatus) {
+      const activeIndex = invoices.findIndex((i) => i.id === active.id);
+      const overIndex = invoices.findIndex((i) => i.id === over.id);
+      
+      if (activeIndex !== overIndex) {
+        setInvoices(arrayMove(invoices, activeIndex, overIndex));
+      }
+    }
+  };
+
+  const openInvoiceDialog = (invoice) => {
+    setSelectedInvoice(invoice);
+    setPaymentProofFile(null);
+    setPaymentDate(null);
+    setDialogOpen(true);
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (!selectedInvoice) return;
+    setUpdating(true);
+
+    try {
+      const payload = { nuevo_estatus: newStatus };
+      if (newStatus === 'Pagada' && paymentDate) {
+        payload.fecha_pago_real = format(paymentDate, 'yyyy-MM-dd');
+      }
+
+      await axios.put(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/status`,
+        payload,
+        getAuthHeader()
+      );
+
+      // Upload payment proof if exists
+      if (paymentProofFile && newStatus === 'Pagada') {
+        const formData = new FormData();
+        formData.append('proof_file', paymentProofFile);
+        
+        await axios.post(
+          `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+      }
+
+      toast.success('Factura actualizada');
+      setDialogOpen(false);
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error updating invoice:', error);
+      toast.error('Error al actualizar factura');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleProofFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        toast.error('Solo se permiten archivos PDF');
+        return;
+      }
+      setPaymentProofFile(file);
+    }
+  };
+
+  const downloadFile = async (url, filename) => {
+    try {
+      const response = await axios.get(`${API_URL}${url}`, {
+        ...getAuthHeader(),
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'documento.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Archivo descargado');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast.error('Error al descargar archivo');
+    }
+  };
+
+  const activeInvoice = activeId ? invoices.find((i) => i.id === activeId) : null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in" data-testid="kanban-page">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
+            Panel Tesorero
+          </h1>
+          <p className="text-zinc-500 mt-1">Gestión visual de facturas por estatus</p>
+        </div>
+
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <Input
+            placeholder="Buscar facturas..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+            data-testid="kanban-search-input"
+          />
+        </div>
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+      >
+        <div className="flex gap-6 overflow-x-auto pb-4">
+          {COLUMNS.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              invoices={getInvoicesByStatus(column.id)}
+              onCardClick={openInvoiceDialog}
+            />
+          ))}
+        </div>
+
+        <DragOverlay>
+          {activeInvoice ? <InvoiceCardOverlay invoice={activeInvoice} /> : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* Invoice Detail Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold font-[Chivo]">
+              Gestionar Factura
+            </DialogTitle>
+            <DialogDescription>
+              Actualice el estatus y adjunte comprobantes de pago.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedInvoice && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-zinc-50 rounded-lg">
+                <div>
+                  <p className="text-xs text-zinc-500">Folio Fiscal</p>
+                  <p className="font-mono font-medium text-sm">{selectedInvoice.folio_fiscal}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Monto</p>
+                  <p className="font-mono font-bold">{formatCurrency(selectedInvoice.monto)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Proveedor</p>
+                  <p className="font-medium text-sm">{selectedInvoice.nombre_proveedor}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Vencimiento</p>
+                  <p className="font-medium text-sm">{selectedInvoice.fecha_vencimiento.slice(0, 10)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Cambiar Estatus</Label>
+                <Select
+                  value={selectedInvoice.estatus}
+                  onValueChange={handleStatusChange}
+                  disabled={updating}
+                >
+                  <SelectTrigger data-testid="status-change-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLUMNS.map((col) => (
+                      <SelectItem key={col.id} value={col.id}>
+                        {col.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedInvoice.estatus !== 'Pagada' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Fecha Real de Pago (opcional)</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {paymentDate ? format(paymentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={paymentDate}
+                          onSelect={setPaymentDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Comprobante de Pago (PDF)</Label>
+                    <div className={`border-2 border-dashed rounded-lg p-4 text-center ${paymentProofFile ? 'border-green-500 bg-green-50' : 'border-zinc-300'}`}>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleProofFileChange}
+                        className="hidden"
+                        id="proof-upload"
+                      />
+                      <label htmlFor="proof-upload" className="cursor-pointer">
+                        {paymentProofFile ? (
+                          <div className="flex items-center justify-center gap-2 text-green-700">
+                            <FileText className="w-5 h-5" />
+                            <span className="text-sm">{paymentProofFile.name}</span>
+                          </div>
+                        ) : (
+                          <div className="text-zinc-500">
+                            <Upload className="w-6 h-6 mx-auto mb-1" />
+                            <p className="text-sm">Subir comprobante</p>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {selectedInvoice.pdf_url && (
+                <Button
+                  variant="ghost"
+                  onClick={() => downloadFile(selectedInvoice.pdf_url, `factura_${selectedInvoice.folio_fiscal}.pdf`)}
+                  className="inline-flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-medium p-0 h-auto"
+                  data-testid="download-invoice-pdf"
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar PDF de Factura
+                </Button>
+              )}
+
+              {selectedInvoice.comprobante_pago_url && (
+                <Button
+                  variant="ghost"
+                  onClick={() => downloadFile(selectedInvoice.comprobante_pago_url, `comprobante_${selectedInvoice.folio_fiscal}.pdf`)}
+                  className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 text-sm font-medium p-0 h-auto"
+                  data-testid="download-payment-proof"
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar Comprobante de Pago
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default KanbanPage;
