@@ -2,31 +2,34 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# instalar dependencias del sistema para SQL Server
+# instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    unixodbc \
-    unixodbc-dev \
     curl \
     gnupg \
+    unixodbc \
+    unixodbc-dev \
+    gcc \
+    g++ \
     apt-transport-https \
     ca-certificates
 
-# instalar driver Microsoft ODBC
-RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
- && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
- && apt-get update \
- && ACCEPT_EULA=Y apt-get install -y msodbcsql17
+# agregar repositorio Microsoft
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+
+RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/11/prod bullseye main" > /etc/apt/sources.list.d/mssql-release.list
+
+# instalar driver SQL Server
+RUN apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql17
 
 # copiar proyecto
 COPY . .
 
-# instalar python deps
+# instalar dependencias python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# puerto
+# puerto Railway
 ENV PORT=8080
 
-# comando inicio
+# iniciar FastAPI
 CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "8080"]
