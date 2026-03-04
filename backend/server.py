@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from pathlib import Path
 import os
 import logging
@@ -14,7 +15,26 @@ load_dotenv(ROOT_DIR / ".env")
 from backend.db.session import engine
 from backend.db.base import Base
 
-app = FastAPI(title="Sistema de Gestión de Facturas")
+# Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Lifespan event handler (reemplaza @app.on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("🚀 Iniciando aplicación...")
+    if os.environ.get("ENV", "development") == "development":
+        Base.metadata.create_all(bind=engine)
+    logger.info("✅ Tablas de base de datos creadas/verificadas")
+    yield
+    # Shutdown
+    logger.info("🛑 Cerrando aplicación...")
+
+app = FastAPI(title="Sistema de Gestión de Facturas", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -44,25 +64,13 @@ app.include_router(audit_router)
 app.include_router(system_router)
 app.include_router(seed_router)
 
-# Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("startup")
-def startup_event():
-    # create tables when running in development
-    if os.environ.get("ENV", "development") == "development":
-        Base.metadata.create_all(bind=engine)
-
-@app.on_event("shutdown")
-def shutdown_event():
-    # no Mongo client to close anymore
-    pass
-
-app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")
+# Montar archivos estáticos del frontend (solo si existen)
+frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
+if frontend_build_path.exists():
+    logger.info(f"📁 Sirviendo frontend desde: {frontend_build_path}")
+    app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="frontend")
+else:
+    logger.warning(f"⚠️ No encontrado: {frontend_build_path} - Frontend no será servido desde el backend")
 
 # Permitir ejecución directa con python
 if __name__ == "__main__":
