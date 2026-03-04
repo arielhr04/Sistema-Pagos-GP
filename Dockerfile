@@ -28,8 +28,8 @@ COPY . .
 # instalar dependencias python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# puerto Railway
+# puerto Railway (importante: Railway inyecta PORT automáticamente)
 ENV PORT=8080
 
-# iniciar FastAPI usando Python directamente
-CMD ["python", "-m", "backend.server"]
+# iniciar FastAPI usando el módulo backend
+CMD ["python", "-m", "backend"]
