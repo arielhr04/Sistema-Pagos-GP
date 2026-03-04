@@ -4,11 +4,11 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from schemas.area_schemas import AreaCreate, AreaResponse
-from schemas.enums import RoleEnum
-from services.auth_service import require_roles, get_current_user
-from db.session import get_db
-from models.area import Area
+from backend.schemas.area_schemas import AreaCreate, AreaResponse
+from backend.schemas.enums import RoleEnum
+from backend.services.auth_service import require_roles, get_current_user
+from backend.db.session import get_db
+from backend.models.area import Area
 
 router = APIRouter(prefix="/api/areas", tags=["Areas"])
 

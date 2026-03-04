@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from models.movement import MovementHistory
+from backend.models.movement import MovementHistory
 
 # Movement History
 

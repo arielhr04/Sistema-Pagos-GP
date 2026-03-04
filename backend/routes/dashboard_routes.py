@@ -4,11 +4,11 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from schemas.invoice_schemas import DashboardStats
-from schemas.enums import RoleEnum, InvoiceStatusEnum
-from services.auth_service import require_roles
-from db.session import get_db
-from models.invoice import Invoice
+from backend.schemas.invoice_schemas import DashboardStats
+from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
+from backend.services.auth_service import require_roles
+from backend.db.session import get_db
+from backend.models.invoice import Invoice
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 

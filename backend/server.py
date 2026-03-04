@@ -11,8 +11,8 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 # import configuration and database at startup
-from db.session import engine
-from db.base import Base
+from backend.db.session import engine
+from backend.db.base import Base
 
 app = FastAPI(title="Sistema de Gestión de Facturas")
 
@@ -26,14 +26,14 @@ app.add_middleware(
 )
 
 # Import routers AFTER app creation
-from routes.auth_routes import router as auth_router
-from routes.user_routes import router as user_router
-from routes.area_routes import router as area_router
-from routes.invoice_routes import router as invoice_router
-from routes.dashboard_routes import router as dashboard_router
-from routes.audit_routes import router as audit_router
-from routes.system_routes import router as system_router
-from routes.seed_routes import router as seed_router
+from backend.routes.auth_routes import router as auth_router
+from backend.routes.user_routes import router as user_router
+from backend.routes.area_routes import router as area_router
+from backend.routes.invoice_routes import router as invoice_router
+from backend.routes.dashboard_routes import router as dashboard_router
+from backend.routes.audit_routes import router as audit_router
+from backend.routes.system_routes import router as system_router
+from backend.routes.seed_routes import router as seed_router
 
 app.include_router(auth_router)
 app.include_router(user_router)

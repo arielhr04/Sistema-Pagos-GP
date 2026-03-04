@@ -8,12 +8,12 @@ from openpyxl import Workbook
 
 from sqlalchemy.orm import Session
 
-from schemas.user_schemas import UserCreate, UserUpdate, UserResponse
-from schemas.enums import RoleEnum
-from services.auth_service import require_roles, hash_password
-from db.session import get_db
-from models.user import User
-from models.area import Area
+from backend.schemas.user_schemas import UserCreate, UserUpdate, UserResponse
+from backend.schemas.enums import RoleEnum
+from backend.services.auth_service import require_roles, hash_password
+from backend.db.session import get_db
+from backend.models.user import User
+from backend.models.area import Area
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 

@@ -3,13 +3,13 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from schemas.invoice_schemas import MovementHistoryResponse
-from schemas.enums import RoleEnum
-from services.auth_service import require_roles
-from db.session import get_db
-from models.movement import MovementHistory
-from models.user import User
-from models.invoice import Invoice
+from backend.schemas.invoice_schemas import MovementHistoryResponse
+from backend.schemas.enums import RoleEnum
+from backend.services.auth_service import require_roles
+from backend.db.session import get_db
+from backend.models.movement import MovementHistory
+from backend.models.user import User
+from backend.models.invoice import Invoice
 
 router = APIRouter(prefix="/api", tags=["Audit"])
 

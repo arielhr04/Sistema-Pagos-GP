@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
-from db.base import Base
+from backend.db.base import Base
 
 
 def generate_uuid() -> str:

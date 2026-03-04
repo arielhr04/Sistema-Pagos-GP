@@ -6,8 +6,8 @@ import jwt
 import os
 from sqlalchemy.orm import Session
 
-from db.session import get_db
-from models.user import User
+from backend.db.session import get_db
+from backend.models.user import User
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'super-secret-key-change-in-production')

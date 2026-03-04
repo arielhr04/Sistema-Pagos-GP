@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
-from core.config import DATABASE_URL
+from backend.core.config import DATABASE_URL
 
 # Create the SQLAlchemy engine for SQL Server with robust connection pooling
 engine = create_engine(

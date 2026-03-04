@@ -11,18 +11,18 @@ import re
 
 from sqlalchemy.orm import Session
 
-from schemas.invoice_schemas import (
+from backend.schemas.invoice_schemas import (
     InvoiceResponse,
     InvoiceStatusUpdate,
     MovementHistoryResponse,
 )
-from schemas.enums import RoleEnum, InvoiceStatusEnum
-from services.auth_service import require_roles, get_current_user
-from db.session import get_db
-from models.invoice import Invoice
-from models.area import Area
-from models.user import User
-from models.movement import MovementHistory
+from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
+from backend.services.auth_service import require_roles, get_current_user
+from backend.db.session import get_db
+from backend.models.invoice import Invoice
+from backend.models.area import Area
+from backend.models.user import User
+from backend.models.movement import MovementHistory
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)

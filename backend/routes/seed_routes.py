@@ -4,11 +4,11 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from schemas.enums import RoleEnum
-from services.auth_service import hash_password
-from db.session import get_db
-from models.area import Area
-from models.user import User
+from backend.schemas.enums import RoleEnum
+from backend.services.auth_service import hash_password
+from backend.db.session import get_db
+from backend.models.area import Area
+from backend.models.user import User
 
 router = APIRouter(prefix="/api", tags=["System"])
 
