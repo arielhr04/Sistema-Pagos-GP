@@ -31,5 +31,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # puerto Railway
 ENV PORT=8080
 
-# iniciar FastAPI
-CMD ["sh", "-c", "uvicorn backend.server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# iniciar FastAPI usando Python directamente
+CMD ["python", "-m", "backend.server"]

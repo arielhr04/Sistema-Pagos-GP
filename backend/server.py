@@ -63,3 +63,10 @@ def shutdown_event():
     pass
 
 app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")
+
+# Permitir ejecución directa con python
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8080))
+    logger.info(f"🚀 Iniciando servidor en puerto {port}")
+    uvicorn.run("backend.server:app", host="0.0.0.0", port=port, reload=False)
