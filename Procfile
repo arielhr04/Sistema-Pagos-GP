@@ -1,1 +1,1 @@
-app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")
+web: uvicorn backend.server:app --host 0.0.0.0 --port $PORT
