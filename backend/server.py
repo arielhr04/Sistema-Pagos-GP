@@ -4,11 +4,15 @@ from starlette.middleware.cors import CORSMiddleware
 from pathlib import Path
 import os
 import logging
-
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
+
+# import configuration and database at startup
+from db.session import engine
+from db.base import Base
 
 app = FastAPI(title="Sistema de Gestión de Facturas")
 
@@ -47,8 +51,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    from database import client
-    client.close()
+@app.on_event("startup")
+def startup_event():
+    # create tables when running in development
+    if os.environ.get("ENV", "development") == "development":
+        Base.metadata.create_all(bind=engine)
 
+@app.on_event("shutdown")
+def shutdown_event():
+    # no Mongo client to close anymore
+    pass
+
+app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")

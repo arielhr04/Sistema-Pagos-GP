@@ -64,13 +64,11 @@ const Layout = () => {
           {/* Logo */}
           <div className="flex items-center justify-between p-6 border-b border-zinc-800">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-600 rounded-md flex items-center justify-center">
-                <FileText className="w-6 h-6 text-white" strokeWidth={1.5} />
-              </div>
-              <div>
-                <h1 className="font-bold text-lg font-[Chivo] tracking-tight">FACTURAS</h1>
-                <p className="text-xs text-zinc-400">Control Financiero</p>
-              </div>
+              <img 
+                src="/images/logo.png" 
+                alt="Logo" 
+                className="mx-auto w-30 h-30 object-contain"
+              />
             </div>
             <button 
               className="lg:hidden text-zinc-400 hover:text-white"

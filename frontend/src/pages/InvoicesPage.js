@@ -21,13 +21,28 @@ import {
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Label } from '../components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Calendar } from '../components/ui/calendar';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle 
+} from '../components/ui/dialog';
 import { 
   Search, 
   FileText, 
   Filter,
   X,
-  History
+  History,
+  Download,
+  Upload,
+  Calendar as CalendarIcon
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -40,13 +55,19 @@ const STATUS_STYLES = {
 };
 
 const InvoicesPage = () => {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, token, user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [paymentDate, setPaymentDate] = useState(null);
+  const [paymentProofFile, setPaymentProofFile] = useState(null);
+  const [updating, setUpdating] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -92,6 +113,128 @@ const InvoicesPage = () => {
     setSearchTerm('');
     setStatusFilter('');
     setAreaFilter('');
+  };
+
+  const handleInvoiceClick = (invoice) => {
+    setSelectedInvoice(invoice);
+    setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
+    setPaymentProofFile(null);
+    setDialogOpen(true);
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (!selectedInvoice) return;
+    setUpdating(true);
+    try {
+      const response = await axios.put(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/status`,
+        { nuevo_estatus: newStatus, fecha_pago_real: paymentDate ? paymentDate.toISOString().slice(0, 10) : null },
+        getAuthHeader()
+      );
+      setSelectedInvoice(response.data);
+      fetchInvoices();
+      toast.success('Estatus actualizado');
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Error al actualizar estatus');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleProofFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+    setPaymentProofFile(file);
+    if (!selectedInvoice) return;
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('proof_file', file);
+      const response = await axios.post(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
+        formData,
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data' 
+          } 
+        }
+      );
+      setSelectedInvoice(response.data);
+      fetchInvoices();
+      toast.success('Comprobante subido y factura marcada como Pagada');
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      toast.error('Error al subir comprobante');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const downloadFile = async (url, filename) => {
+    try {
+      const response = await axios.get(`${API_URL}${url}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      
+      // Extract filename from URL
+      const urlParts = url.split('/');
+      const serverFilename = urlParts[urlParts.length - 1];
+      
+      const downloadUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = serverFilename || filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Archivo descargado');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast.error('Error al descargar archivo');
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN'
+    }).format(amount);
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('estatus', statusFilter);
+      if (areaFilter) params.append('area', areaFilter);
+      const response = await axios.get(`${API_URL}/api/invoices/export/excel?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `facturas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Archivo exportado');
+    } catch (error) {
+      console.error('Error exporting invoices:', error);
+      toast.error('Error al exportar');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -148,6 +291,16 @@ const InvoicesPage = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={handleExportExcel}
+              disabled={exporting}
+              data-testid="export-excel-btn"
+            >
+              {exporting ? 'Exportando...' : 'Exportar Excel'}
+            </Button>
 
             {(searchTerm || statusFilter || areaFilter) && (
               <Button variant="ghost" onClick={clearFilters} className="px-3">
@@ -195,7 +348,11 @@ const InvoicesPage = () => {
                 </TableHeader>
                 <TableBody>
                   {invoices.map((invoice, index) => (
-                    <TableRow key={invoice.id} className="hover:bg-zinc-50">
+                    <TableRow 
+                      key={invoice.id} 
+                      onClick={() => handleInvoiceClick(invoice)}
+                      className="hover:bg-zinc-50 cursor-pointer"
+                    >
                       <TableCell className="font-mono text-sm text-zinc-500">
                         #{index + 1}
                       </TableCell>
@@ -224,9 +381,146 @@ const InvoicesPage = () => {
                 </TableBody>
               </Table>
             </div>
-          )}
-        </CardContent>
+          )}        </CardContent>
       </Card>
+
+      {/* Invoice Detail Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold font-[Chivo]">
+              Detalle de Factura
+            </DialogTitle>
+            <DialogDescription>
+              Información completa y gestión de la factura.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedInvoice && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-zinc-50 rounded-lg">
+                <div>
+                  <p className="text-xs text-zinc-500">Folio Fiscal</p>
+                  <p className="font-mono font-medium text-sm">{selectedInvoice.folio_fiscal}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Monto</p>
+                  <p className="font-mono font-bold">{formatCurrency(selectedInvoice.monto)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Proveedor</p>
+                  <p className="font-medium text-sm">{selectedInvoice.nombre_proveedor}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Vencimiento</p>
+                  <p className="font-medium text-sm">{selectedInvoice.fecha_vencimiento.slice(0, 10)}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-zinc-500">Descripción</p>
+                  <p className="text-sm">{selectedInvoice.descripcion_factura}</p>
+                </div>
+              </div>
+
+              {(user?.rol === 'Administrador' || user?.rol === 'Tesorero') && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Cambiar Estatus</Label>
+                    <Select
+                      key={`status-${selectedInvoice.estatus}`}
+                      value={selectedInvoice.estatus}
+                      onValueChange={handleStatusChange}
+                      disabled={updating}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Capturada">Capturada</SelectItem>
+                        <SelectItem value="En revisión">En revisión</SelectItem>
+                        <SelectItem value="Programada">Programada</SelectItem>
+                        <SelectItem value="Pagada">Pagada</SelectItem>
+                        <SelectItem value="Rechazada">Rechazada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedInvoice.estatus !== 'Pagada' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Fecha Real de Pago (opcional)</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-start">
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {paymentDate ? format(paymentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={paymentDate}
+                              onSelect={setPaymentDate}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Comprobante de Pago (PDF)</Label>
+                        <div className={`border-2 border-dashed rounded-lg p-4 text-center ${
+                          paymentProofFile ? 'border-green-500 bg-green-50' : 'border-zinc-300'
+                        }`}>
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            onChange={handleProofFileChange}
+                            className="hidden"
+                            id="proof-upload-invoices"
+                          />
+                          <label htmlFor="proof-upload-invoices" className="cursor-pointer">
+                            {paymentProofFile ? (
+                              <div className="flex items-center justify-center gap-2 text-green-700">
+                                <FileText className="w-5 h-5" />
+                                <span className="text-sm">{paymentProofFile.name}</span>
+                              </div>
+                            ) : (
+                              <div className="text-zinc-500">
+                                <Upload className="w-6 h-6 mx-auto mb-1" />
+                                <p className="text-sm">Subir comprobante</p>
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {selectedInvoice.pdf_url && (
+                <Button
+                  onClick={() => downloadFile(selectedInvoice.pdf_url, `factura_${selectedInvoice.folio_fiscal}.pdf`)}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Descargar PDF de Factura
+                </Button>
+              )}
+
+              {selectedInvoice.comprobante_pago_url && (
+                <Button
+                  onClick={() => downloadFile(selectedInvoice.comprobante_pago_url, `comprobante_${selectedInvoice.folio_fiscal}.pdf`)}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Descargar Comprobante de Pago
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

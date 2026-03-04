@@ -47,9 +47,11 @@ const LoginPage = () => {
       <div className="w-full max-w-md animate-fade-in">
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto mb-4 w-16 h-16 bg-red-600 rounded-xl flex items-center justify-center shadow-lg">
-              <FileText className="w-9 h-9 text-white" strokeWidth={1.5} />
-            </div>
+            <img 
+              src="/images/logo.png" 
+              alt="Logo Empresa" 
+              className="mx-auto mb-4 h-41 w-41 object-contain drop-shadow-lg"
+            />
             <CardTitle className="text-2xl font-black font-[Chivo] tracking-tight text-zinc-900">
               Sistema de Facturas
             </CardTitle>
@@ -128,7 +130,7 @@ const LoginPage = () => {
         </Card>
 
         <p className="text-center mt-6 text-white/70 text-sm">
-          © 2025 Control Financiero. Todos los derechos reservados.
+          © 2026 Grupo Gran Premio. Todos los derechos reservados.
         </p>
       </div>
     </div>

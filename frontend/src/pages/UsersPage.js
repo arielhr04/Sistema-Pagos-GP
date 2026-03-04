@@ -172,7 +172,7 @@ const UsersPage = () => {
   const handleExportExcel = async () => {
     setExporting(true);
     try {
-      const response = await axios.get(`${API_URL}/api/invoices/export/excel`, {
+      const response = await axios.get(`${API_URL}/api/users/export/excel`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       });

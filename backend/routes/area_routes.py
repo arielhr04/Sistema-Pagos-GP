@@ -2,32 +2,35 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 import uuid
 
-from database import db
+from sqlalchemy.orm import Session
+
 from schemas.area_schemas import AreaCreate, AreaResponse
 from schemas.enums import RoleEnum
 from services.auth_service import require_roles, get_current_user
+from db.session import get_db
+from models.area import Area
 
 router = APIRouter(prefix="/api/areas", tags=["Areas"])
 
 @router.post("/", response_model=AreaResponse)
-async def create_area(area_data: AreaCreate, current_user: dict = Depends(require_roles(RoleEnum.ADMINISTRADOR))):
+def create_area(area_data: AreaCreate, current_user: Area = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
     area_id = str(uuid.uuid4())
-    area_doc = {
-        "id": area_id,
-        "nombre": area_data.nombre,
-        "descripcion": area_data.descripcion
-    }
-    await db.areas.insert_one(area_doc)
-    return AreaResponse(**area_doc)
+    area_obj = Area(id=area_id, nombre=area_data.nombre, descripcion=area_data.descripcion)
+    db.add(area_obj)
+    db.commit()
+    db.refresh(area_obj)
+    return AreaResponse(id=area_obj.id, nombre=area_obj.nombre, descripcion=area_obj.descripcion)
 
 @router.get("/", response_model=List[AreaResponse])
-async def get_areas(current_user: dict = Depends(get_current_user)):
-    areas = await db.areas.find({}, {"_id": 0}).to_list(100)
-    return [AreaResponse(**a) for a in areas]
+def get_areas(current_user: Area = Depends(get_current_user), db: Session = Depends(get_db)):
+    areas = db.query(Area).all()
+    return [AreaResponse(id=a.id, nombre=a.nombre, descripcion=a.descripcion) for a in areas]
 
 @router.delete("/{area_id}")
-async def delete_area(area_id: str, current_user: dict = Depends(require_roles(RoleEnum.ADMINISTRADOR))):
-    result = await db.areas.delete_one({"id": area_id})
-    if result.deleted_count == 0:
+def delete_area(area_id: str, current_user: Area = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
+    area = db.query(Area).filter(Area.id == area_id).first()
+    if not area:
         raise HTTPException(status_code=404, detail="Área no encontrada")
+    db.delete(area)
+    db.commit()
     return {"message": "Área eliminada"}

@@ -3,10 +3,14 @@ from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
-import aiofiles
 from io import BytesIO
+from pathlib import Path
+from openpyxl import Workbook
+import shutil
+import re
 
-from database import db
+from sqlalchemy.orm import Session
+
 from schemas.invoice_schemas import (
     InvoiceResponse,
     InvoiceStatusUpdate,
@@ -14,17 +18,60 @@ from schemas.invoice_schemas import (
 )
 from schemas.enums import RoleEnum, InvoiceStatusEnum
 from services.auth_service import require_roles, get_current_user
+from db.session import get_db
+from models.invoice import Invoice
+from models.area import Area
+from models.user import User
+from models.movement import MovementHistory
 
-from pathlib import Path
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-
-
 router = APIRouter(prefix="/api", tags=["Invoices"])
 
+
+def sanitize_filename(text: str) -> str:
+    """Sanitize filename by removing special characters"""
+    # Remove or replace special characters
+    text = re.sub(r'[^a-zA-Z0-9._-]', '_', text)
+    return text.strip('_')
+
+
+def check_disk_space(min_gb: float = 1.0):
+    """Validate that there's enough free disk space"""
+    try:
+        total, used, free = shutil.disk_usage(UPLOAD_DIR)
+        free_gb = free / (1024 ** 3)  # Convert bytes to GB
+        
+        if free_gb < min_gb:
+            raise HTTPException(
+                status_code=507,
+                detail=f"Espacio insuficiente en disco. Disponible: {free_gb:.2f}GB"
+            )
+        return free_gb
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al verificar espacio en disco: {str(e)}"
+        )
+
+
+def log_movement(db: Session, factura_id: str, usuario_id: str, estatus_anterior: str, estatus_nuevo: str):
+    movement = MovementHistory(
+        factura_id=factura_id,
+        usuario_id=usuario_id,
+        estatus_anterior=estatus_anterior,
+        estatus_nuevo=estatus_nuevo,
+        fecha_cambio=datetime.now(timezone.utc),
+    )
+    db.add(movement)
+    db.commit()
+
+
 @router.post("/invoices", response_model=InvoiceResponse)
-async def create_invoice(
+def create_invoice(
     nombre_proveedor: str = Form(...),
     descripcion_factura: str = Form(...),
     area_procedencia: str = Form(...),
@@ -32,62 +79,80 @@ async def create_invoice(
     fecha_vencimiento: str = Form(...),
     folio_fiscal: str = Form(...),
     pdf_file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     # Validate PDF
     if not pdf_file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
-    
+
     # Check file size (max 10MB)
-    content = await pdf_file.read()
+    content = pdf_file.file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
-    
+
     # Check duplicate folio
-    existing = await db.invoices.find_one({"folio_fiscal": folio_fiscal})
+    existing = db.query(Invoice).filter(Invoice.folio_fiscal == folio_fiscal).first()
     if existing:
         raise HTTPException(status_code=400, detail="El folio fiscal ya existe")
-    
-    # Save PDF
+
+    # Validate disk space before saving
+    check_disk_space(min_gb=0.5)  # Asegurar 500MB mínimo
+
+    # Save PDF with standardized filename
     invoice_id = str(uuid.uuid4())
-    pdf_filename = f"{invoice_id}_{pdf_file.filename}"
+    sanitized_proveedor = sanitize_filename(nombre_proveedor)
+    pdf_filename = f"FACGP_{folio_fiscal}_{sanitized_proveedor}.pdf"
     pdf_path = UPLOAD_DIR / pdf_filename
     
-    async with aiofiles.open(pdf_path, 'wb') as f:
-        await f.write(content)
-    
+    try:
+        with open(pdf_path, 'wb') as f:
+            f.write(content)
+    except IOError as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar PDF: {str(e)}")
+
     now = datetime.now(timezone.utc).isoformat()
-    
-    invoice_doc = {
-        "id": invoice_id,
-        "nombre_proveedor": nombre_proveedor,
-        "descripcion_factura": descripcion_factura,
-        "area_procedencia": area_procedencia,
-        "monto": monto,
-        "fecha_vencimiento": fecha_vencimiento,
-        "folio_fiscal": folio_fiscal,
-        "estatus": InvoiceStatusEnum.CAPTURADA.value,
-        "pdf_url": f"/api/files/{pdf_filename}",
-        "comprobante_pago_url": None,
-        "fecha_pago_real": None,
-        "created_by": current_user["id"],
-        "created_at": now,
-        "updated_at": now
-    }
-    
-    await db.invoices.insert_one(invoice_doc)
-    
-    # Log movement
-    await log_movement(invoice_id, current_user["id"], "", InvoiceStatusEnum.CAPTURADA.value)
-    
-    area = await db.areas.find_one({"id": area_procedencia}, {"_id": 0})
-    
+
+    try:
+        invoice_obj = Invoice(
+            id=invoice_id,
+            nombre_proveedor=nombre_proveedor,
+            descripcion_factura=descripcion_factura,
+            area_procedencia=area_procedencia,
+            monto=monto,
+            fecha_vencimiento=fecha_vencimiento,
+            folio_fiscal=folio_fiscal,
+            estatus=InvoiceStatusEnum.CAPTURADA.value,
+            pdf_url=f"/api/files/{pdf_filename}",
+            comprobante_pago_url=None,
+            fecha_pago_real=None,
+            created_by=current_user.id,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(invoice_obj)
+        db.commit()
+        db.refresh(invoice_obj)
+
+        # Log movement
+        log_movement(db, invoice_id, current_user.id, "", InvoiceStatusEnum.CAPTURADA.value)
+    except Exception as e:
+        db.rollback()
+        # Delete the saved PDF if database transaction failed
+        try:
+            pdf_path.unlink()
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail=f"Error al crear factura: {str(e)}")
+
+    area_obj = db.query(Area).filter(Area.id == area_procedencia).first()
+
     return InvoiceResponse(
         id=invoice_id,
         nombre_proveedor=nombre_proveedor,
         descripcion_factura=descripcion_factura,
         area_procedencia=area_procedencia,
-        area_nombre=area["nombre"] if area else None,
+        area_nombre=area_obj.nombre if area_obj else None,
         monto=monto,
         fecha_vencimiento=fecha_vencimiento,
         folio_fiscal=folio_fiscal,
@@ -95,212 +160,254 @@ async def create_invoice(
         pdf_url=f"/api/files/{pdf_filename}",
         comprobante_pago_url=None,
         fecha_pago_real=None,
-        created_by=current_user["id"],
-        created_by_nombre=current_user["nombre"],
+        created_by=current_user.id,
+        created_by_nombre=current_user.nombre,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
 
 @router.get("/invoices", response_model=List[InvoiceResponse])
-async def get_invoices(
+def get_invoices(
     estatus: Optional[str] = None,
     area: Optional[str] = None,
     search: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    query = {}
-    
-    # Filter by role - Usuario Área only sees their own invoices
-    if current_user["rol"] == RoleEnum.USUARIO_AREA.value:
-        query["created_by"] = current_user["id"]
-    
+    query = db.query(Invoice)
+
+    if current_user.rol == RoleEnum.USUARIO_AREA.value:
+        query = query.filter(Invoice.created_by == current_user.id)
     if estatus:
-        query["estatus"] = estatus
+        query = query.filter(Invoice.estatus == estatus)
     if area:
-        query["area_procedencia"] = area
+        query = query.filter(Invoice.area_procedencia == area)
     if search:
-        query["$or"] = [
-            {"nombre_proveedor": {"$regex": search, "$options": "i"}},
-            {"folio_fiscal": {"$regex": search, "$options": "i"}},
-            {"descripcion_factura": {"$regex": search, "$options": "i"}}
-        ]
-    
-    invoices = await db.invoices.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
-    
-    # Get areas and users for names (optimized projections)
-    areas = {a["id"]: a["nombre"] for a in await db.areas.find({}, {"_id": 0, "id": 1, "nombre": 1}).to_list(50)}
-    users = {u["id"]: u["nombre"] for u in await db.users.find({}, {"_id": 0, "id": 1, "nombre": 1}).to_list(100)}
-    
+        pattern = f"%{search}%"
+        query = query.filter(
+            Invoice.nombre_proveedor.ilike(pattern)
+            | Invoice.folio_fiscal.ilike(pattern)
+            | Invoice.descripcion_factura.ilike(pattern)
+        )
+
+    invoices = query.order_by(Invoice.created_at.desc()).limit(200).all()
+
+    areas = {a.id: a.nombre for a in db.query(Area).limit(50).all()}
+    users = {u.id: u.nombre for u in db.query(User).limit(100).all()}
+
     return [
         InvoiceResponse(
-            id=inv["id"],
-            nombre_proveedor=inv["nombre_proveedor"],
-            descripcion_factura=inv["descripcion_factura"],
-            area_procedencia=inv["area_procedencia"],
-            area_nombre=areas.get(inv["area_procedencia"]),
-            monto=inv["monto"],
-            fecha_vencimiento=inv["fecha_vencimiento"],
-            folio_fiscal=inv["folio_fiscal"],
-            estatus=inv["estatus"],
-            pdf_url=inv.get("pdf_url"),
-            comprobante_pago_url=inv.get("comprobante_pago_url"),
-            fecha_pago_real=inv.get("fecha_pago_real"),
-            created_by=inv["created_by"],
-            created_by_nombre=users.get(inv["created_by"]),
-            created_at=inv["created_at"],
-            updated_at=inv["updated_at"]
-        ) for inv in invoices
+            id=inv.id,
+            nombre_proveedor=inv.nombre_proveedor,
+            descripcion_factura=inv.descripcion_factura,
+            area_procedencia=inv.area_procedencia,
+            area_nombre=areas.get(inv.area_procedencia),
+            monto=inv.monto,
+            fecha_vencimiento=inv.fecha_vencimiento,
+            folio_fiscal=inv.folio_fiscal,
+            estatus=inv.estatus,
+            pdf_url=inv.pdf_url,
+            comprobante_pago_url=inv.comprobante_pago_url,
+            fecha_pago_real=inv.fecha_pago_real,
+            created_by=inv.created_by,
+            created_by_nombre=users.get(inv.created_by),
+            created_at=inv.created_at.isoformat() if inv.created_at else None,
+            updated_at=inv.updated_at.isoformat() if inv.updated_at else None,
+        )
+        for inv in invoices
     ]
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
-async def get_invoice(invoice_id: str, current_user: dict = Depends(get_current_user)):
-    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
-    if not invoice:
+def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    
-    area = await db.areas.find_one({"id": invoice["area_procedencia"]}, {"_id": 0})
-    user = await db.users.find_one({"id": invoice["created_by"]}, {"_id": 0, "password": 0})
-    
+
+    area_obj = db.query(Area).filter(Area.id == inv.area_procedencia).first()
+    user_obj = db.query(User).filter(User.id == inv.created_by).first()
+
     return InvoiceResponse(
-        id=invoice["id"],
-        nombre_proveedor=invoice["nombre_proveedor"],
-        descripcion_factura=invoice["descripcion_factura"],
-        area_procedencia=invoice["area_procedencia"],
-        area_nombre=area["nombre"] if area else None,
-        monto=invoice["monto"],
-        fecha_vencimiento=invoice["fecha_vencimiento"],
-        folio_fiscal=invoice["folio_fiscal"],
-        estatus=invoice["estatus"],
-        pdf_url=invoice.get("pdf_url"),
-        comprobante_pago_url=invoice.get("comprobante_pago_url"),
-        fecha_pago_real=invoice.get("fecha_pago_real"),
-        created_by=invoice["created_by"],
-        created_by_nombre=user["nombre"] if user else None,
-        created_at=invoice["created_at"],
-        updated_at=invoice["updated_at"]
+        id=inv.id,
+        nombre_proveedor=inv.nombre_proveedor,
+        descripcion_factura=inv.descripcion_factura,
+        area_procedencia=inv.area_procedencia,
+        area_nombre=area_obj.nombre if area_obj else None,
+        monto=inv.monto,
+        fecha_vencimiento=inv.fecha_vencimiento,
+        folio_fiscal=inv.folio_fiscal,
+        estatus=inv.estatus,
+        pdf_url=inv.pdf_url,
+        comprobante_pago_url=inv.comprobante_pago_url,
+        fecha_pago_real=inv.fecha_pago_real,
+        created_by=inv.created_by,
+        created_by_nombre=user_obj.nombre if user_obj else None,
+        created_at=inv.created_at.isoformat() if inv.created_at else None,
+        updated_at=inv.updated_at.isoformat() if inv.updated_at else None,
     )
 
 @router.put("/invoices/{invoice_id}/status", response_model=InvoiceResponse)
-async def update_invoice_status(
+def update_invoice_status(
     invoice_id: str,
     status_update: InvoiceStatusUpdate,
-    current_user: dict = Depends(require_roles(RoleEnum.ADMINISTRADOR, RoleEnum.TESORERO))
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR, RoleEnum.TESORERO)),
+    db: Session = Depends(get_db),
 ):
-    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
-    if not invoice:
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    
-    old_status = invoice["estatus"]
+
+    old_status = inv.estatus
     new_status = status_update.nuevo_estatus.value
+
+    try:
+        inv.estatus = new_status
+        inv.updated_at = datetime.now(timezone.utc).isoformat()
+        if status_update.fecha_pago_real:
+            inv.fecha_pago_real = status_update.fecha_pago_real
+        db.commit()
+
+        log_movement(db, invoice_id, current_user.id, old_status, new_status)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al actualizar estatus: {str(e)}")
     
-    update_dict = {
-        "estatus": new_status,
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    if status_update.fecha_pago_real:
-        update_dict["fecha_pago_real"] = status_update.fecha_pago_real
-    
-    await db.invoices.update_one({"id": invoice_id}, {"$set": update_dict})
-    
-    # Log movement
-    await log_movement(invoice_id, current_user["id"], old_status, new_status)
-    
-    return await get_invoice(invoice_id, current_user)
+    return get_invoice(invoice_id, current_user, db)
 
 @router.post("/invoices/{invoice_id}/payment-proof", response_model=InvoiceResponse)
-async def upload_payment_proof(
+def upload_payment_proof(
     invoice_id: str,
     proof_file: UploadFile = File(...),
-    current_user: dict = Depends(require_roles(RoleEnum.ADMINISTRADOR, RoleEnum.TESORERO))
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR, RoleEnum.TESORERO)),
+    db: Session = Depends(get_db),
 ):
-    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
-    if not invoice:
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    
+
     if not proof_file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
-    
-    content = await proof_file.read()
+
+    content = proof_file.file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
-    
-    proof_filename = f"proof_{invoice_id}_{proof_file.filename}"
+
+    # Validate disk space before saving
+    check_disk_space(min_gb=0.5)
+
+    # Save payment proof with standardized filename
+    sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
+    proof_filename = f"PAGP_{inv.folio_fiscal}_{sanitized_proveedor}.pdf"
     proof_path = UPLOAD_DIR / proof_filename
     
-    async with aiofiles.open(proof_path, 'wb') as f:
-        await f.write(content)
+    try:
+        with open(proof_path, 'wb') as f:
+            f.write(content)
+    except IOError as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar comprobante: {str(e)}")
+
+    # Automatically change status to Pagada when payment proof is uploaded
+    old_status = inv.estatus
     
-    await db.invoices.update_one(
-        {"id": invoice_id},
-        {"$set": {
-            "comprobante_pago_url": f"/api/files/{proof_filename}",
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }}
-    )
-    
-    return await get_invoice(invoice_id, current_user)
+    try:
+        inv.comprobante_pago_url = f"/api/files/{proof_filename}"
+        inv.estatus = InvoiceStatusEnum.PAGADA.value
+        inv.updated_at = datetime.now(timezone.utc).isoformat()
+        if not inv.fecha_pago_real:
+            inv.fecha_pago_real = datetime.now(timezone.utc).date().isoformat()
+        db.commit()
+
+        # Log movement
+        if old_status != InvoiceStatusEnum.PAGADA.value:
+            log_movement(db, invoice_id, current_user.id, old_status, InvoiceStatusEnum.PAGADA.value)
+    except Exception as e:
+        db.rollback()
+        # Delete the saved proof if database transaction failed
+        try:
+            proof_path.unlink()
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail=f"Error al procesar comprobante: {str(e)}")
+
+    return get_invoice(invoice_id, current_user, db)
 
 @router.get("/files/{filename}")
-async def get_file(filename: str, current_user: dict = Depends(get_current_user)):
+def get_file(filename: str, current_user: User = Depends(get_current_user)):
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     
-    async with aiofiles.open(file_path, 'rb') as f:
-        content = await f.read()
+    def iterfile():
+        with open(file_path, 'rb') as f:
+            yield from f
     
     return StreamingResponse(
-        BytesIO(content),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename={filename}"}
+        iterfile(),
+        media_type='application/pdf',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': 'application/pdf'
+        }
     )
 
 
-
-# Export Excel
+# export invoices as Excel spreadsheet
 @router.get("/invoices/export/excel")
-async def export_invoices_excel(current_user: dict = Depends(require_roles(RoleEnum.ADMINISTRADOR))):
-    invoices = await db.invoices.find({}, {"_id": 0, "folio_fiscal": 1, "nombre_proveedor": 1, "descripcion_factura": 1, "area_procedencia": 1, "monto": 1, "fecha_vencimiento": 1, "estatus": 1, "created_at": 1}).to_list(1000)
-    areas = {a["id"]: a["nombre"] for a in await db.areas.find({}, {"_id": 0, "id": 1, "nombre": 1}).to_list(50)}
-    
-    wb = openpyxl.Workbook()
+def export_invoices_excel(
+    estatus: Optional[str] = None,
+    area: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # mirror filtering logic from get_invoices
+    query = db.query(Invoice)
+    if current_user.rol == RoleEnum.USUARIO_AREA.value:
+        query = query.filter(Invoice.created_by == current_user.id)
+    if estatus:
+        query = query.filter(Invoice.estatus == estatus)
+    if area:
+        query = query.filter(Invoice.area_procedencia == area)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            Invoice.nombre_proveedor.ilike(pattern)
+            | Invoice.folio_fiscal.ilike(pattern)
+            | Invoice.descripcion_factura.ilike(pattern)
+        )
+    invoices = query.order_by(Invoice.created_at.desc()).all()
+    wb = Workbook()
     ws = wb.active
     ws.title = "Facturas"
-    
-    # Headers
-    headers = ["Folio Fiscal", "Proveedor", "Descripción", "Área", "Monto", "Fecha Vencimiento", "Estatus", "Fecha Creación"]
-    header_fill = PatternFill(start_color="DC2626", end_color="DC2626", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF")
-    
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center")
-    
-    # Data
-    for row, inv in enumerate(invoices, 2):
-        ws.cell(row=row, column=1, value=inv["folio_fiscal"])
-        ws.cell(row=row, column=2, value=inv["nombre_proveedor"])
-        ws.cell(row=row, column=3, value=inv["descripcion_factura"])
-        ws.cell(row=row, column=4, value=areas.get(inv["area_procedencia"], ""))
-        ws.cell(row=row, column=5, value=inv["monto"])
-        ws.cell(row=row, column=6, value=inv["fecha_vencimiento"][:10])
-        ws.cell(row=row, column=7, value=inv["estatus"])
-        ws.cell(row=row, column=8, value=inv["created_at"][:10])
-    
-    # Auto-width
-    for col in ws.columns:
-        max_length = max(len(str(cell.value or "")) for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
-    
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    
+    ws.append([
+        "ID",
+        "Folio Fiscal",
+        "Proveedor",
+        "Área",
+        "Monto",
+        "Estatus",
+        "Fecha Vencimiento",
+        "Creada Por",
+        "Fecha Registro",
+    ])
+    areas = {a.id: a.nombre for a in db.query(Area).all()}
+    users = {u.id: u.nombre for u in db.query(User).all()}
+    for inv in invoices:
+        ws.append([
+            inv.id,
+            inv.folio_fiscal,
+            inv.nombre_proveedor,
+            areas.get(inv.area_procedencia),
+            inv.monto,
+            inv.estatus,
+            inv.fecha_vencimiento,
+            users.get(inv.created_by),
+            inv.created_at.isoformat() if inv.created_at else None,
+        ])
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
     return StreamingResponse(
-        output,
+        stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=facturas_{datetime.now().strftime('%Y%m%d')}.xlsx"}
+        headers={"Content-Disposition": "attachment; filename=facturas.xlsx"},
     )

@@ -4,8 +4,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
 import jwt
 import os
+from sqlalchemy.orm import Session
 
-from database import db
+from db.session import get_db
+from models.user import User
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'super-secret-key-change-in-production')
@@ -29,13 +31,16 @@ def create_token(user_id: str, email: str, rol: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+        user: User | None = db.query(User).filter(User.id == payload["sub"]).first()
         if not user:
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
-        if not user.get("activo", True):
+        if not user.activo:
             raise HTTPException(status_code=401, detail="Usuario desactivado")
         return user
     except jwt.ExpiredSignatureError:
@@ -44,8 +49,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token inválido")
 
 def require_roles(*roles):
-    async def role_checker(user: dict = Depends(get_current_user)):
-        if user["rol"] not in roles:
+    def role_checker(user: User = Depends(get_current_user)):
+        if user.rol not in roles:
             raise HTTPException(status_code=403, detail="Acceso denegado")
         return user
     return role_checker

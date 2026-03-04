@@ -10,6 +10,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -99,6 +100,7 @@ const SortableInvoiceCard = ({ invoice, onClick }) => {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    scale: isDragging ? 0.95 : 1,
   };
 
   const traffic = invoice.estatus !== 'Pagada' && invoice.estatus !== 'Rechazada'
@@ -109,18 +111,16 @@ const SortableInvoiceCard = ({ invoice, onClick }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-white rounded-lg border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={() => onClick(invoice)}
+      {...attributes}
+      {...listeners}
+      className={`bg-white rounded-lg border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${
+        isDragging ? 'shadow-2xl ring-2 ring-red-400' : ''
+      }`}
       data-testid={`kanban-card-${invoice.id}`}
     >
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <div
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-zinc-100 rounded"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="p-1 -ml-1">
             <GripVertical className="w-4 h-4 text-zinc-400" />
           </div>
           {traffic && (
@@ -140,7 +140,7 @@ const SortableInvoiceCard = ({ invoice, onClick }) => {
           {invoice.descripcion_factura}
         </p>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <span className="font-bold text-zinc-900 font-mono">
             {formatCurrency(invoice.monto)}
           </span>
@@ -148,6 +148,18 @@ const SortableInvoiceCard = ({ invoice, onClick }) => {
             {invoice.fecha_vencimiento.slice(0, 10)}
           </span>
         </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick(invoice);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="w-full bg-red-600 hover:bg-red-700 text-white font-medium text-sm py-2 px-4 rounded-lg transition-colors duration-200 cursor-pointer"
+        >
+          {invoice.estatus === 'Programada' ? 'Pagar Factura' : 'Ver factura'}
+        </button>
       </div>
     </div>
   );
@@ -155,17 +167,45 @@ const SortableInvoiceCard = ({ invoice, onClick }) => {
 
 // Invoice Card for Drag Overlay
 const InvoiceCardOverlay = ({ invoice }) => {
+  const traffic = invoice.estatus !== 'Pagada' && invoice.estatus !== 'Rechazada'
+    ? getTrafficLight(invoice.fecha_vencimiento)
+    : null;
+
   return (
-    <div className="bg-white rounded-lg border border-zinc-200 shadow-xl p-4 w-72 rotate-3">
-      <h4 className="font-semibold text-zinc-900 text-sm mb-1">
+    <div className="bg-white rounded-lg border-2 border-red-500 shadow-2xl p-4 w-80 scale-110 will-change-transform relative">
+      <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="animate-bounce" style={{ animationDuration: '0.6s' }}>
+          <GripVertical className="w-5 h-5 text-red-500" />
+        </div>
+        {traffic && (
+          <Badge variant="outline" className={`${traffic.className} text-xs`}>
+            {traffic.label}
+          </Badge>
+        )}
+      </div>
+      <h4 className="font-semibold text-zinc-900 text-sm mb-1 line-clamp-1">
         {invoice.nombre_proveedor}
       </h4>
       <p className="text-xs text-zinc-500 font-mono mb-2">
         {invoice.folio_fiscal}
       </p>
-      <span className="font-bold text-zinc-900 font-mono">
-        {formatCurrency(invoice.monto)}
-      </span>
+      <p className="text-xs text-zinc-500 line-clamp-2 mb-3">
+        {invoice.descripcion_factura}
+      </p>
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-bold text-zinc-900 font-mono">
+          {formatCurrency(invoice.monto)}
+        </span>
+        <span className="text-xs text-zinc-500">
+          {invoice.fecha_vencimiento.slice(0, 10)}
+        </span>
+      </div>
+      <button
+        className="w-full bg-red-600 text-white font-medium text-sm py-2 px-4 rounded-lg pointer-events-none"
+      >
+        {invoice.estatus === 'Programada' ? 'Pagar Factura' : 'Ver factura'}
+      </button>
     </div>
   );
 };
@@ -173,10 +213,13 @@ const InvoiceCardOverlay = ({ invoice }) => {
 // Droppable Column
 const KanbanColumn = ({ column, invoices, onCardClick }) => {
   const total = invoices.reduce((sum, inv) => sum + inv.monto, 0);
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  });
 
   return (
     <div className="flex-shrink-0 w-80">
-      <Card className={`bg-white border border-zinc-200 border-t-4 ${column.color} h-full`}>
+      <Card className={`bg-white border border-zinc-200 border-t-4 ${column.color} h-full ${isOver ? 'ring-2 ring-red-400 bg-red-50/30' : ''}`}>
         <CardHeader className="p-4 border-b border-zinc-100 bg-zinc-50/50">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-bold uppercase tracking-wide">
@@ -190,7 +233,7 @@ const KanbanColumn = ({ column, invoices, onCardClick }) => {
             {formatCurrency(total)}
           </p>
         </CardHeader>
-        <CardContent className="p-3 space-y-3 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto">
+        <CardContent ref={setNodeRef} className="p-3 space-y-3 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto">
           <SortableContext
             items={invoices.map((i) => i.id)}
             strategy={verticalListSortingStrategy}
@@ -230,7 +273,8 @@ const KanbanPage = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 3,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -275,27 +319,31 @@ const KanbanPage = () => {
     const activeInvoice = invoices.find((i) => i.id === active.id);
     if (!activeInvoice) return;
 
-    // Find the target column
+    // Determine target status
     let targetStatus = null;
-    for (const column of COLUMNS) {
-      const columnInvoices = getInvoicesByStatus(column.id);
-      if (columnInvoices.some((i) => i.id === over.id) || over.id === column.id) {
-        targetStatus = column.id;
-        break;
-      }
-    }
-
-    // If dropped in same column or no target, check if it's the column itself
-    if (!targetStatus) {
-      const overColumn = COLUMNS.find((c) => c.id === over.id);
-      if (overColumn) {
-        targetStatus = overColumn.id;
+    
+    // Check if dropped directly on a column
+    if (COLUMNS.some(c => c.id === over.id)) {
+      targetStatus = over.id;
+    } else {
+      // Dropped on an invoice card, find which column it belongs to
+      const overInvoice = invoices.find((i) => i.id === over.id);
+      if (overInvoice) {
+        targetStatus = overInvoice.estatus;
       }
     }
 
     if (!targetStatus || activeInvoice.estatus === targetStatus) return;
 
-    // Update status
+    // Optimistic update - update UI immediately
+    const previousInvoices = [...invoices];
+    setInvoices(invoices.map(inv => 
+      inv.id === activeInvoice.id 
+        ? { ...inv, estatus: targetStatus }
+        : inv
+    ));
+
+    // Update on server
     try {
       await axios.put(
         `${API_URL}/api/invoices/${activeInvoice.id}/status`,
@@ -303,10 +351,11 @@ const KanbanPage = () => {
         getAuthHeader()
       );
       toast.success(`Factura movida a "${targetStatus}"`);
-      fetchInvoices();
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Error al actualizar estatus');
+      // Revert on error
+      setInvoices(previousInvoices);
     }
   };
 
@@ -381,14 +430,43 @@ const KanbanPage = () => {
     }
   };
 
-  const handleProofFileChange = (e) => {
+  const handleProofFileChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        toast.error('Solo se permiten archivos PDF');
-        return;
-      }
-      setPaymentProofFile(file);
+    if (!file) return;
+    
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+    
+    setPaymentProofFile(file);
+    
+    if (!selectedInvoice) return;
+    
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('proof_file', file);
+      
+      const response = await axios.post(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      setSelectedInvoice(response.data);
+      toast.success('Comprobante subido y factura marcada como Pagada');
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      toast.error('Error al subir comprobante');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -399,11 +477,14 @@ const KanbanPage = () => {
         responseType: 'blob'
       });
       
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const downloadUrl = window.URL.createObjectURL(blob);
+      // Extract filename from URL
+      const urlParts = url.split('/');
+      const serverFilename = urlParts[urlParts.length - 1];
+      
+      const downloadUrl = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = filename || 'documento.pdf';
+      link.download = serverFilename || filename || 'documento.pdf';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -465,7 +546,10 @@ const KanbanPage = () => {
           ))}
         </div>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={{
+          duration: 150,
+          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+        }}>
           {activeInvoice ? <InvoiceCardOverlay invoice={activeInvoice} /> : null}
         </DragOverlay>
       </DndContext>
@@ -506,6 +590,7 @@ const KanbanPage = () => {
               <div className="space-y-2">
                 <Label>Cambiar Estatus</Label>
                 <Select
+                  key={`status-${selectedInvoice.estatus}`}
                   value={selectedInvoice.estatus}
                   onValueChange={handleStatusChange}
                   disabled={updating}
@@ -575,24 +660,22 @@ const KanbanPage = () => {
 
               {selectedInvoice.pdf_url && (
                 <Button
-                  variant="ghost"
                   onClick={() => downloadFile(selectedInvoice.pdf_url, `factura_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="inline-flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-medium p-0 h-auto"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
                   data-testid="download-invoice-pdf"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4 mr-2" />
                   Descargar PDF de Factura
                 </Button>
               )}
 
               {selectedInvoice.comprobante_pago_url && (
                 <Button
-                  variant="ghost"
                   onClick={() => downloadFile(selectedInvoice.comprobante_pago_url, `comprobante_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 text-sm font-medium p-0 h-auto"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg"
                   data-testid="download-payment-proof"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4 mr-2" />
                   Descargar Comprobante de Pago
                 </Button>
               )}

@@ -1,32 +1,44 @@
 from fastapi import APIRouter, Depends, Query
 from typing import List
 
-from database import db
+from sqlalchemy.orm import Session
+
 from schemas.invoice_schemas import MovementHistoryResponse
 from schemas.enums import RoleEnum
 from services.auth_service import require_roles
+from db.session import get_db
+from models.movement import MovementHistory
+from models.user import User
+from models.invoice import Invoice
 
 router = APIRouter(prefix="/api", tags=["Audit"])
 
 @router.get("/audit", response_model=List[MovementHistoryResponse])
-async def get_audit_logs(
+def get_audit_logs(
     limit: int = Query(100, le=500),
-    current_user: dict = Depends(require_roles(RoleEnum.ADMINISTRADOR))
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
+    db: Session = Depends(get_db),
 ):
-    movements = await db.movement_history.find({}, {"_id": 0}).sort("fecha_cambio", -1).to_list(limit)
-    
-    users = {u["id"]: u["nombre"] for u in await db.users.find({}, {"_id": 0, "id": 1, "nombre": 1}).to_list(100)}
-    invoices = {i["id"]: i["folio_fiscal"] for i in await db.invoices.find({}, {"_id": 0, "id": 1, "folio_fiscal": 1}).to_list(500)}
-    
+    movements = (
+        db.query(MovementHistory)
+        .order_by(MovementHistory.fecha_cambio.desc())
+        .limit(limit)
+        .all()
+    )
+
+    users_map = {u.id: u.nombre for u in db.query(User).limit(100).all()}
+    invoices_map = {i.id: i.folio_fiscal for i in db.query(Invoice).limit(500).all()}
+
     return [
         MovementHistoryResponse(
-            id=m["id"],
-            factura_id=m["factura_id"],
-            folio_fiscal=invoices.get(m["factura_id"]),
-            usuario_id=m["usuario_id"],
-            usuario_nombre=users.get(m["usuario_id"]),
-            estatus_anterior=m["estatus_anterior"],
-            estatus_nuevo=m["estatus_nuevo"],
-            fecha_cambio=m["fecha_cambio"]
-        ) for m in movements
+            id=m.id,
+            factura_id=m.factura_id,
+            folio_fiscal=invoices_map.get(m.factura_id),
+            usuario_id=m.usuario_id,
+            usuario_nombre=users_map.get(m.usuario_id),
+            estatus_anterior=m.estatus_anterior,
+            estatus_nuevo=m.estatus_nuevo,
+            fecha_cambio=m.fecha_cambio.isoformat() if m.fecha_cambio else None,
+        )
+        for m in movements
     ]
