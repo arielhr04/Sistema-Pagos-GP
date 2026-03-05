@@ -133,13 +133,16 @@ const DashboardPage = () => {
   const fetchAreas = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/api/areas`, getAuthHeader());
+      console.log('✅ Áreas cargadas:', response.data);
       setAreas(response.data);
+      
       // Pre-select user's area if available
-      if (user?.area_id) {
+      if (user?.area_id && response.data.length > 0) {
         setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
       }
     } catch (error) {
-      console.error('Error fetching areas:', error);
+      console.error('❌ Error fetching areas:', error);
+      toast.error(`Error al cargar áreas: ${error.response?.data?.detail || error.message}`);
     }
   }, [getAuthHeader, user?.area_id]);
 
