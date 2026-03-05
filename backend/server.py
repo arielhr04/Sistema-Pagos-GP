@@ -215,6 +215,24 @@ def debug_verify_password(email: str, password: str):
         "usuario_rol": user.rol
     }
 
+@app.get("/api/debug/routes")
+def debug_routes():
+    """Debug: Listar todas las rutas registradas."""
+    from fastapi.routing import APIRoute
+    routes = []
+    for route in app.routes:
+        if isinstance(route, APIRoute):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods),
+                "name": route.name
+            })
+    return {
+        "total_routes": len(routes),
+        "routes": sorted(routes, key=lambda r: r["path"]),
+        "areas_routes": [r for r in sorted(routes, key=lambda r: r["path"]) if "area" in r["path"].lower()]
+    }
+
 # Montar archivos estáticos del frontend (solo si existen)
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
 if frontend_build_path.exists():
