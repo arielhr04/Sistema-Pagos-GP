@@ -18,6 +18,7 @@ from backend.schemas.invoice_schemas import (
 )
 from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
 from backend.services.auth_service import require_roles, get_current_user
+from backend.services.pdf_storage import PDFStorage
 from backend.db.session import get_db
 from backend.models.invoice import Invoice
 from backend.models.area import Area
@@ -27,6 +28,9 @@ from backend.models.movement import MovementHistory
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+# Maximum allowed PDF size before compression (10MB)
+MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
+
 router = APIRouter(prefix="/api", tags=["Invoices"])
 
 
@@ -35,33 +39,6 @@ def sanitize_filename(text: str) -> str:
     # Remove or replace special characters
     text = re.sub(r'[^a-zA-Z0-9._-]', '_', text)
     return text.strip('_')
-
-
-def get_filename_from_url(file_url: Optional[str]) -> Optional[str]:
-    if not file_url:
-        return None
-    return file_url.rsplit('/', 1)[-1]
-
-
-def check_disk_space(min_gb: float = 1.0):
-    """Validate that there's enough free disk space"""
-    try:
-        total, used, free = shutil.disk_usage(UPLOAD_DIR)
-        free_gb = free / (1024 ** 3)  # Convert bytes to GB
-        
-        if free_gb < min_gb:
-            raise HTTPException(
-                status_code=507,
-                detail=f"Espacio insuficiente en disco. Disponible: {free_gb:.2f}GB"
-            )
-        return free_gb
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al verificar espacio en disco: {str(e)}"
-        )
 
 
 def log_movement(db: Session, factura_id: str, usuario_id: str, estatus_anterior: str, estatus_nuevo: str):
@@ -94,7 +71,7 @@ def create_invoice(
 
     # Check file size (max 10MB)
     content = pdf_file.file.read()
-    if len(content) > 10 * 1024 * 1024:
+    if len(content) > MAX_PDF_SIZE_BYTES:
         raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
 
     # Check duplicate folio
@@ -102,20 +79,19 @@ def create_invoice(
     if existing:
         raise HTTPException(status_code=400, detail="El folio fiscal ya existe")
 
-    # Validate disk space before saving
-    check_disk_space(min_gb=0.5)  # Asegurar 500MB mínimo
+    # Compress PDF for database storage (saves 70-80% space)
+    try:
+        compressed_pdf = PDFStorage.compress_pdf(content)
+        original_size_mb = len(content) / (1024 ** 2)
+        compressed_size_mb = len(compressed_pdf) / (1024 ** 2)
+        compression_ratio = PDFStorage.get_compression_ratio(len(content), len(compressed_pdf))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al comprimir PDF: {str(e)}")
 
-    # Save PDF with standardized filename
+    # Save PDF with standardized filename for reference only
     invoice_id = str(uuid.uuid4())
     sanitized_proveedor = sanitize_filename(nombre_proveedor)
     pdf_filename = f"FACGP_{folio_fiscal}_{sanitized_proveedor}.pdf"
-    pdf_path = UPLOAD_DIR / pdf_filename
-    
-    try:
-        with open(pdf_path, 'wb') as f:
-            f.write(content)
-    except IOError as e:
-        raise HTTPException(status_code=500, detail=f"Error al guardar PDF: {str(e)}")
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -129,8 +105,10 @@ def create_invoice(
             fecha_vencimiento=fecha_vencimiento,
             folio_fiscal=folio_fiscal,
             estatus=InvoiceStatusEnum.CAPTURADA.value,
-            pdf_url=f"/api/files/{pdf_filename}",
+            pdf_url=f"/api/invoices/{invoice_id}/download-pdf",
+            pdf_data=compressed_pdf,
             comprobante_pago_url=None,
+            comprobante_pago_data=None,
             fecha_pago_real=None,
             created_by=current_user.id,
             created_at=now,
@@ -144,11 +122,6 @@ def create_invoice(
         log_movement(db, invoice_id, current_user.id, "", InvoiceStatusEnum.CAPTURADA.value)
     except Exception as e:
         db.rollback()
-        # Delete the saved PDF if database transaction failed
-        try:
-            pdf_path.unlink()
-        except OSError:
-            pass
         raise HTTPException(status_code=500, detail=f"Error al crear factura: {str(e)}")
 
     area_obj = db.query(Area).filter(Area.id == area_procedencia).first()
@@ -163,7 +136,7 @@ def create_invoice(
         fecha_vencimiento=fecha_vencimiento,
         folio_fiscal=folio_fiscal,
         estatus=InvoiceStatusEnum.CAPTURADA.value,
-        pdf_url=f"/api/files/{pdf_filename}",
+        pdf_url=f"/api/invoices/{invoice_id}/download-pdf",
         comprobante_pago_url=None,
         fecha_pago_real=None,
         created_by=current_user.id,
@@ -303,31 +276,26 @@ def upload_payment_proof(
         raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
 
     content = proof_file.file.read()
-    if len(content) > 10 * 1024 * 1024:
+    if len(content) > MAX_PDF_SIZE_BYTES:
         raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
 
-    # Validate disk space before saving
-    check_disk_space(min_gb=0.5)
+    # Compress payment proof for database storage
+    try:
+        compressed_proof = PDFStorage.compress_pdf(content)
+        compressed_size_mb = len(compressed_proof) / (1024 ** 2)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al comprimir comprobante: {str(e)}")
 
-    previous_proof_filename = get_filename_from_url(inv.comprobante_pago_url)
-    previous_proof_path = UPLOAD_DIR / previous_proof_filename if previous_proof_filename else None
-
-    # Save payment proof with standardized filename
+    # Save payment proof with standardized filename for reference
     sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
     proof_filename = f"PAGP_{inv.folio_fiscal}_{sanitized_proveedor}.pdf"
-    proof_path = UPLOAD_DIR / proof_filename
-    
-    try:
-        with open(proof_path, 'wb') as f:
-            f.write(content)
-    except IOError as e:
-        raise HTTPException(status_code=500, detail=f"Error al guardar comprobante: {str(e)}")
 
     # Automatically change status to Pagada when payment proof is uploaded
     old_status = inv.estatus
     
     try:
-        inv.comprobante_pago_url = f"/api/files/{proof_filename}"
+        inv.comprobante_pago_url = f"/api/invoices/{invoice_id}/download-proof"
+        inv.comprobante_pago_data = compressed_proof
         inv.estatus = InvoiceStatusEnum.PAGADA.value
         inv.updated_at = datetime.now(timezone.utc).isoformat()
         if not inv.fecha_pago_real:
@@ -337,43 +305,75 @@ def upload_payment_proof(
         # Log movement
         if old_status != InvoiceStatusEnum.PAGADA.value:
             log_movement(db, invoice_id, current_user.id, old_status, InvoiceStatusEnum.PAGADA.value)
-
-        if previous_proof_path and previous_proof_path != proof_path and previous_proof_path.exists():
-            try:
-                previous_proof_path.unlink()
-            except OSError:
-                pass
     except Exception as e:
         db.rollback()
-        # Delete the saved proof if database transaction failed
-        try:
-            if (not previous_proof_path) or (previous_proof_path != proof_path):
-                if proof_path.exists():
-                    proof_path.unlink()
-        except OSError:
-            pass
         raise HTTPException(status_code=500, detail=f"Error al procesar comprobante: {str(e)}")
 
     return get_invoice(invoice_id, current_user, db)
 
 @router.get("/files/{filename}")
 def get_file(filename: str, current_user: User = Depends(get_current_user)):
-    file_path = UPLOAD_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
-    
-    def iterfile():
-        with open(file_path, 'rb') as f:
-            yield from f
-    
-    return StreamingResponse(
-        iterfile(),
-        media_type='application/pdf',
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Type': 'application/pdf'
-        }
+    """Legacy endpoint for backward compatibility. PDFs are now stored in database."""
+    raise HTTPException(
+        status_code=404,
+        detail="Los archivos PDF se almacenan en la base de datos. Use /api/invoices/{id}/download-pdf"
     )
+
+
+@router.get("/invoices/{invoice_id}/download-pdf")
+def download_invoice_pdf(
+    invoice_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download compressed PDF of invoice directly from database"""
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv or not inv.pdf_data:
+        raise HTTPException(status_code=404, detail="PDF de factura no encontrado")
+    
+    try:
+        # Decompress PDF from database
+        pdf_content = PDFStorage.decompress_pdf(inv.pdf_data)
+        
+        # Serve decompressed PDF
+        return StreamingResponse(
+            BytesIO(pdf_content),
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="factura_{inv.folio_fiscal}.pdf"',
+                'Content-Type': 'application/pdf'
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/invoices/{invoice_id}/download-proof")
+def download_payment_proof(
+    invoice_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download compressed payment proof directly from database"""
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv or not inv.comprobante_pago_data:
+        raise HTTPException(status_code=404, detail="Comprobante de pago no encontrado")
+    
+    try:
+        # Decompress proof from database
+        proof_content = PDFStorage.decompress_pdf(inv.comprobante_pago_data)
+        
+        # Serve decompressed proof
+        return StreamingResponse(
+            BytesIO(proof_content),
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="comprobante_{inv.folio_fiscal}.pdf"',
+                'Content-Type': 'application/pdf'
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # export invoices as Excel spreadsheet

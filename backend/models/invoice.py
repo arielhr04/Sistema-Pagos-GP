@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.orm import relationship
 
 from backend.db.base import Base
@@ -22,7 +22,9 @@ class Invoice(Base):
     folio_fiscal = Column(String(255), unique=True, nullable=False)
     estatus = Column(String(50), nullable=False)
     pdf_url = Column(String(1024))
+    pdf_data = Column(LargeBinary, nullable=True)
     comprobante_pago_url = Column(String(1024))
+    comprobante_pago_data = Column(LargeBinary, nullable=True)
     fecha_pago_real = Column(String(50))
     created_by = Column(String(36), ForeignKey("tesoreriapp_gp_users.id"), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
