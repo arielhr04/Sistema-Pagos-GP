@@ -76,3 +76,37 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
         activo=user.activo,
         created_at=user.created_at.isoformat(),
     )
+@router.post("/debug/login-test")
+def debug_login_test(email: str, password: str, db: Session = Depends(get_db)):
+    """Endpoint de debug para verificar login sin necesidad de JSON."""
+    import os
+    if os.environ.get("ENV") == "production":
+        return {"error": "No disponible en producción"}
+    
+    logger.info(f"🔍 DEBUG LOGIN TEST: email={email}, password_length={len(password)}")
+    
+    # Buscar usuario
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
+        return {
+            "status": "error",
+            "message": f"Usuario {email} no encontrado",
+            "usuarios_disponibles": [u.email for u in db.query(User).all()]
+        }
+    
+    # Verificar contraseña
+    is_valid = verify_password(password, user.password)
+    
+    return {
+        "status": "success" if is_valid else "invalid_password",
+        "email": email,
+        "usuario_encontrado": True,
+        "usuario_activo": user.activo,
+        "contraseña_correcta": is_valid,
+        "usuario_nombre": user.nombre,
+        "usuario_rol": user.rol,
+        "hash_password_en_bd": user.password[:40] + "...",
+        "mensaje": "✅ Puedes acceder" if (is_valid and user.activo) else "❌ No puedes acceder",
+        "razon_fallo": "Contraseña incorrecta" if not is_valid else ("Usuario desactivado" if not user.activo else None)
+    }
