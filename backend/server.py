@@ -180,6 +180,41 @@ def debug_users():
         }
     }
 
+@app.post("/api/debug/verify-password/{email}/{password}")
+def debug_verify_password(email: str, password: str):
+    """Endpoint de debug para verificar si una contraseña es correcta."""
+    if os.environ.get("ENV") == "production":
+        return {"error": "No disponible en producción"}
+    
+    from backend.db.session import SessionLocal
+    from backend.models.user import User
+    from backend.services.auth_service import verify_password
+    
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == email).first()
+    db.close()
+    
+    if not user:
+        return {
+            "error": f"Usuario {email} no encontrado",
+            "email": email,
+            "password_verificada": False
+        }
+    
+    is_valid = verify_password(password, user.password)
+    
+    return {
+        "email": email,
+        "usuario_existe": True,
+        "usuario_activo": user.activo,
+        "password_ingresada": password,
+        "password_hash_almacenado": user.password[:30] + "...",
+        "password_verificada": is_valid,
+        "mensaje": "✅ Contraseña correcta" if is_valid else "❌ Contraseña incorrecta",
+        "usuario_nombre": user.nombre,
+        "usuario_rol": user.rol
+    }
+
 # Montar archivos estáticos del frontend (solo si existen)
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
 if frontend_build_path.exists():

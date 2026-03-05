@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+import logging
 
 from backend.schemas.auth_schemas import LoginRequest, TokenResponse, UserResponse
 from backend.services.auth_service import verify_password, create_token, get_current_user
@@ -7,18 +8,37 @@ from backend.db.session import get_db
 from backend.models.user import User
 from backend.models.area import Area
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 # Auth Routes
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
+    logger.info(f"🔐 Intento de login con email: {request.email}")
+    
     user: User | None = db.query(User).filter(User.email == request.email).first()
-    if not user or not verify_password(request.password, user.password):
+    
+    if not user:
+        logger.warning(f"❌ Usuario no encontrado: {request.email}")
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+    logger.info(f"✓ Usuario encontrado: {user.email} (activo: {user.activo})")
+    
+    # Verificar contraseña
+    is_password_valid = verify_password(request.password, user.password)
+    logger.info(f"🔑 Verificación contraseña: {is_password_valid}")
+    
+    if not is_password_valid:
+        logger.warning(f"❌ Contraseña incorrecta para: {request.email}")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
     if not user.activo:
+        logger.warning(f"❌ Usuario desactivado: {request.email}")
         raise HTTPException(status_code=401, detail="Usuario desactivado")
 
     token = create_token(user.id, user.email, user.rol)
+    logger.info(f"✅ Login exitoso para: {request.email}")
 
     area_nombre = None
     if user.area_id:
