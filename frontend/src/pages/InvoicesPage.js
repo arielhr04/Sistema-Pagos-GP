@@ -124,6 +124,12 @@ const InvoicesPage = () => {
 
   const handleStatusChange = async (newStatus) => {
     if (!selectedInvoice) return;
+
+    if (newStatus === 'Pagada' && !selectedInvoice.comprobante_pago_url) {
+      toast.error('No se puede cambiar a Pagada sin subir un comprobante PDF');
+      return;
+    }
+
     setUpdating(true);
     try {
       const response = await axios.put(
@@ -136,7 +142,7 @@ const InvoicesPage = () => {
       toast.success('Estatus actualizado');
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error('Error al actualizar estatus');
+      toast.error(error.response?.data?.detail || 'Error al actualizar estatus');
     } finally {
       setUpdating(false);
     }
@@ -170,7 +176,7 @@ const InvoicesPage = () => {
       toast.success('Comprobante subido y factura marcada como Pagada');
     } catch (error) {
       console.error('Error uploading proof:', error);
-      toast.error('Error al subir comprobante');
+      toast.error(error.response?.data?.detail || 'Error al subir comprobante');
     } finally {
       setUpdating(false);
     }

@@ -162,8 +162,29 @@ const DashboardPage = () => {
 
   const handleStatusChange = async (newStatus) => {
     if (!selectedInvoice) return;
+
+    if (newStatus === 'Pagada' && !selectedInvoice.comprobante_pago_url && !paymentProofFile) {
+      toast.error('No se puede cambiar a Pagada sin subir un comprobante PDF');
+      return;
+    }
+
     setUpdating(true);
     try {
+      if (newStatus === 'Pagada' && paymentProofFile) {
+        const formData = new FormData();
+        formData.append('proof_file', paymentProofFile);
+        await axios.post(
+          `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
+          formData,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+      }
+
       const payload = {
         nuevo_estatus: newStatus,
         fecha_pago_real: paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null,
@@ -173,15 +194,6 @@ const DashboardPage = () => {
         payload,
         getAuthHeader()
       );
-      if (paymentProofFile) {
-        const formData = new FormData();
-        formData.append('proof_file', paymentProofFile);
-        await axios.post(
-          `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
-          formData,
-          getAuthHeader()
-        );
-      }
       toast.success('Factura actualizada');
       setDialogOpen(false);
       setPaymentProofFile(null);
@@ -190,7 +202,7 @@ const DashboardPage = () => {
       else fetchMyInvoices();
     } catch (error) {
       console.error('Error updating invoice:', error);
-      toast.error('Error al actualizar factura');
+      toast.error(error.response?.data?.detail || 'Error al actualizar factura');
     } finally {
       setUpdating(false);
     }
@@ -232,7 +244,7 @@ const DashboardPage = () => {
       else fetchMyInvoices();
     } catch (error) {
       console.error('Error uploading proof:', error);
-      toast.error('Error al subir comprobante');
+      toast.error(error.response?.data?.detail || 'Error al subir comprobante');
     } finally {
       setUpdating(false);
     }

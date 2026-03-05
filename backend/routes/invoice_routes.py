@@ -37,6 +37,12 @@ def sanitize_filename(text: str) -> str:
     return text.strip('_')
 
 
+def get_filename_from_url(file_url: Optional[str]) -> Optional[str]:
+    if not file_url:
+        return None
+    return file_url.rsplit('/', 1)[-1]
+
+
 def check_disk_space(min_gb: float = 1.0):
     """Validate that there's enough free disk space"""
     try:
@@ -259,6 +265,15 @@ def update_invoice_status(
     old_status = inv.estatus
     new_status = status_update.nuevo_estatus.value
 
+    if new_status == InvoiceStatusEnum.PAGADA.value:
+        proof_filename = get_filename_from_url(inv.comprobante_pago_url)
+        proof_path = UPLOAD_DIR / proof_filename if proof_filename else None
+        if not proof_filename or not proof_path.exists():
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede cambiar a 'Pagada' sin un comprobante de pago PDF cargado.",
+            )
+
     try:
         inv.estatus = new_status
         inv.updated_at = datetime.now(timezone.utc).isoformat()
@@ -294,6 +309,9 @@ def upload_payment_proof(
     # Validate disk space before saving
     check_disk_space(min_gb=0.5)
 
+    previous_proof_filename = get_filename_from_url(inv.comprobante_pago_url)
+    previous_proof_path = UPLOAD_DIR / previous_proof_filename if previous_proof_filename else None
+
     # Save payment proof with standardized filename
     sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
     proof_filename = f"PAGP_{inv.folio_fiscal}_{sanitized_proveedor}.pdf"
@@ -319,11 +337,19 @@ def upload_payment_proof(
         # Log movement
         if old_status != InvoiceStatusEnum.PAGADA.value:
             log_movement(db, invoice_id, current_user.id, old_status, InvoiceStatusEnum.PAGADA.value)
+
+        if previous_proof_path and previous_proof_path != proof_path and previous_proof_path.exists():
+            try:
+                previous_proof_path.unlink()
+            except OSError:
+                pass
     except Exception as e:
         db.rollback()
         # Delete the saved proof if database transaction failed
         try:
-            proof_path.unlink()
+            if (not previous_proof_path) or (previous_proof_path != proof_path):
+                if proof_path.exists():
+                    proof_path.unlink()
         except OSError:
             pass
         raise HTTPException(status_code=500, detail=f"Error al procesar comprobante: {str(e)}")

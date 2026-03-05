@@ -335,6 +335,11 @@ const KanbanPage = () => {
 
     if (!targetStatus || activeInvoice.estatus === targetStatus) return;
 
+    if (targetStatus === 'Pagada' && !activeInvoice.comprobante_pago_url) {
+      toast.error('No se puede mover a Pagada sin comprobante PDF');
+      return;
+    }
+
     // Optimistic update - update UI immediately
     const previousInvoices = [...invoices];
     setInvoices(invoices.map(inv => 
@@ -353,7 +358,7 @@ const KanbanPage = () => {
       toast.success(`Factura movida a "${targetStatus}"`);
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error('Error al actualizar estatus');
+      toast.error(error.response?.data?.detail || 'Error al actualizar estatus');
       // Revert on error
       setInvoices(previousInvoices);
     }
@@ -388,25 +393,19 @@ const KanbanPage = () => {
 
   const handleStatusChange = async (newStatus) => {
     if (!selectedInvoice) return;
+
+    if (newStatus === 'Pagada' && !selectedInvoice.comprobante_pago_url && !paymentProofFile) {
+      toast.error('No se puede cambiar a Pagada sin subir un comprobante PDF');
+      return;
+    }
+
     setUpdating(true);
 
     try {
-      const payload = { nuevo_estatus: newStatus };
-      if (newStatus === 'Pagada' && paymentDate) {
-        payload.fecha_pago_real = format(paymentDate, 'yyyy-MM-dd');
-      }
-
-      await axios.put(
-        `${API_URL}/api/invoices/${selectedInvoice.id}/status`,
-        payload,
-        getAuthHeader()
-      );
-
-      // Upload payment proof if exists
-      if (paymentProofFile && newStatus === 'Pagada') {
+      if (newStatus === 'Pagada' && paymentProofFile) {
         const formData = new FormData();
         formData.append('proof_file', paymentProofFile);
-        
+
         await axios.post(
           `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
           formData,
@@ -419,12 +418,23 @@ const KanbanPage = () => {
         );
       }
 
+      const payload = { nuevo_estatus: newStatus };
+      if (newStatus === 'Pagada' && paymentDate) {
+        payload.fecha_pago_real = format(paymentDate, 'yyyy-MM-dd');
+      }
+
+      await axios.put(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/status`,
+        payload,
+        getAuthHeader()
+      );
+
       toast.success('Factura actualizada');
       setDialogOpen(false);
       fetchInvoices();
     } catch (error) {
       console.error('Error updating invoice:', error);
-      toast.error('Error al actualizar factura');
+      toast.error(error.response?.data?.detail || 'Error al actualizar factura');
     } finally {
       setUpdating(false);
     }
@@ -464,7 +474,7 @@ const KanbanPage = () => {
       fetchInvoices();
     } catch (error) {
       console.error('Error uploading proof:', error);
-      toast.error('Error al subir comprobante');
+      toast.error(error.response?.data?.detail || 'Error al subir comprobante');
     } finally {
       setUpdating(false);
     }
