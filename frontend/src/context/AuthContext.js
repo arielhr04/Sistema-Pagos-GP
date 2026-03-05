@@ -1,7 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+// Si REACT_APP_BACKEND_URL está vacío o no está definido, usa URL relativa
+// Esto permite funcionar en local (http://localhost:3000 → http://localhost:8000)
+// y en production (https://tuapp.railway.app → https://tuapp.railway.app)
+const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 const AuthContext = createContext(null);
 
