@@ -47,6 +47,10 @@ __pycache__/
 venv/
 .venv/
 
+# Backend uploads (archivos de usuarios - NO subir a GitHub)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # Development tools
 chainlit.md
 .chainlit

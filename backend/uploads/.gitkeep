@@ -1,0 +1,3 @@
+# Esta carpeta almacena archivos PDF de facturas y comprobantes de pago
+# Los archivos aquí NO se suben a GitHub por seguridad y privacidad
+# En producción (Railway), configurar un Volume persistente
