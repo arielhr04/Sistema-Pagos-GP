@@ -27,9 +27,90 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Iniciando aplicación...")
-    if os.environ.get("ENV", "development") == "development":
-        Base.metadata.create_all(bind=engine)
+    
+    # Crear tablas
+    Base.metadata.create_all(bind=engine)
     logger.info("✅ Tablas de base de datos creadas/verificadas")
+    
+    # Auto-seed: crear usuarios iniciales si la BD está vacía
+    try:
+        from backend.db.session import SessionLocal
+        from backend.models.user import User
+        
+        db = SessionLocal()
+        user_count = db.query(User).count()
+        
+        if user_count == 0:
+            logger.info("📊 Base de datos vacía. Ejecutando seed automático...")
+            
+            from uuid import uuid4
+            from datetime import datetime
+            from backend.models.area import Area
+            from backend.schemas.enums import RoleEnum
+            from backend.services.auth_service import hash_password
+            
+            now = datetime.utcnow()
+            
+            # Crear áreas
+            areas = [
+                Area(id=str(uuid4()), nombre="Finanzas", descripcion="Departamento de Finanzas"),
+                Area(id=str(uuid4()), nombre="Operaciones", descripcion="Departamento de Operaciones"),
+                Area(id=str(uuid4()), nombre="Recursos Humanos", descripcion="Departamento de RRHH"),
+                Area(id=str(uuid4()), nombre="Tecnología", descripcion="Departamento de TI"),
+            ]
+            db.add_all(areas)
+            db.flush()
+            
+            # Crear usuarios de ejemplo
+            users = [
+                User(
+                    id=str(uuid4()),
+                    email="admin@sistema.com",
+                    password=hash_password("admin123"),
+                    nombre="Administrador Principal",
+                    rol=RoleEnum.ADMINISTRADOR.value,
+                    area_id=None,
+                    activo=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                User(
+                    id=str(uuid4()),
+                    email="tesorero@sistema.com",
+                    password=hash_password("tesorero123"),
+                    nombre="Tesorero Principal",
+                    rol=RoleEnum.TESORERO.value,
+                    area_id=areas[0].id,
+                    activo=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                User(
+                    id=str(uuid4()),
+                    email="usuario@sistema.com",
+                    password=hash_password("usuario123"),
+                    nombre="Usuario de Área",
+                    rol=RoleEnum.USUARIO_AREA.value,
+                    area_id=areas[1].id,
+                    activo=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+            db.add_all(users)
+            db.commit()
+            
+            logger.info("✅ Seed completado. Usuarios creados:")
+            logger.info("   📧 admin@sistema.com : admin123")
+            logger.info("   📧 tesorero@sistema.com : tesorero123")
+            logger.info("   📧 usuario@sistema.com : usuario123")
+        else:
+            logger.info(f"✅ Base de datos con {user_count} usuarios existentes")
+        
+        db.close()
+    except Exception as e:
+        logger.error(f"⚠️ Error en seed automático: {e}")
+    
     yield
     # Shutdown
     logger.info("🛑 Cerrando aplicación...")
