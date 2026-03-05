@@ -82,16 +82,8 @@ def create_invoice(
     # Compress PDF for database storage (saves 70-80% space)
     try:
         compressed_pdf = PDFStorage.compress_pdf(content)
-        original_size_mb = len(content) / (1024 ** 2)
-        compressed_size_mb = len(compressed_pdf) / (1024 ** 2)
-        compression_ratio = PDFStorage.get_compression_ratio(len(content), len(compressed_pdf))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al comprimir PDF: {str(e)}")
-
-    # Save PDF with standardized filename for reference only
-    invoice_id = str(uuid.uuid4())
-    sanitized_proveedor = sanitize_filename(nombre_proveedor)
-    pdf_filename = f"FACGP_{folio_fiscal}_{sanitized_proveedor}.pdf"
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -105,9 +97,7 @@ def create_invoice(
             fecha_vencimiento=fecha_vencimiento,
             folio_fiscal=folio_fiscal,
             estatus=InvoiceStatusEnum.CAPTURADA.value,
-            pdf_url=f"/api/invoices/{invoice_id}/download-pdf",
             pdf_data=compressed_pdf,
-            comprobante_pago_url=None,
             comprobante_pago_data=None,
             fecha_pago_real=None,
             created_by=current_user.id,
@@ -136,8 +126,6 @@ def create_invoice(
         fecha_vencimiento=fecha_vencimiento,
         folio_fiscal=folio_fiscal,
         estatus=InvoiceStatusEnum.CAPTURADA.value,
-        pdf_url=f"/api/invoices/{invoice_id}/download-pdf",
-        comprobante_pago_url=None,
         fecha_pago_real=None,
         created_by=current_user.id,
         created_by_nombre=current_user.nombre,
@@ -185,8 +173,6 @@ def get_invoices(
             fecha_vencimiento=inv.fecha_vencimiento,
             folio_fiscal=inv.folio_fiscal,
             estatus=inv.estatus,
-            pdf_url=inv.pdf_url,
-            comprobante_pago_url=inv.comprobante_pago_url,
             fecha_pago_real=inv.fecha_pago_real,
             created_by=inv.created_by,
             created_by_nombre=users.get(inv.created_by),
@@ -215,8 +201,6 @@ def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user),
         fecha_vencimiento=inv.fecha_vencimiento,
         folio_fiscal=inv.folio_fiscal,
         estatus=inv.estatus,
-        pdf_url=inv.pdf_url,
-        comprobante_pago_url=inv.comprobante_pago_url,
         fecha_pago_real=inv.fecha_pago_real,
         created_by=inv.created_by,
         created_by_nombre=user_obj.nombre if user_obj else None,
@@ -239,9 +223,7 @@ def update_invoice_status(
     new_status = status_update.nuevo_estatus.value
 
     if new_status == InvoiceStatusEnum.PAGADA.value:
-        proof_filename = get_filename_from_url(inv.comprobante_pago_url)
-        proof_path = UPLOAD_DIR / proof_filename if proof_filename else None
-        if not proof_filename or not proof_path.exists():
+        if not inv.comprobante_pago_data:
             raise HTTPException(
                 status_code=400,
                 detail="No se puede cambiar a 'Pagada' sin un comprobante de pago PDF cargado.",
@@ -282,19 +264,13 @@ def upload_payment_proof(
     # Compress payment proof for database storage
     try:
         compressed_proof = PDFStorage.compress_pdf(content)
-        compressed_size_mb = len(compressed_proof) / (1024 ** 2)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al comprimir comprobante: {str(e)}")
-
-    # Save payment proof with standardized filename for reference
-    sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
-    proof_filename = f"PAGP_{inv.folio_fiscal}_{sanitized_proveedor}.pdf"
 
     # Automatically change status to Pagada when payment proof is uploaded
     old_status = inv.estatus
     
     try:
-        inv.comprobante_pago_url = f"/api/invoices/{invoice_id}/download-proof"
         inv.comprobante_pago_data = compressed_proof
         inv.estatus = InvoiceStatusEnum.PAGADA.value
         inv.updated_at = datetime.now(timezone.utc).isoformat()
@@ -335,12 +311,16 @@ def download_invoice_pdf(
         # Decompress PDF from database
         pdf_content = PDFStorage.decompress_pdf(inv.pdf_data)
         
+        # Generate standardized filename
+        sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
+        filename = f"FACGP_{inv.folio_fiscal}_{sanitized_proveedor}.pdf"
+        
         # Serve decompressed PDF
         return StreamingResponse(
             BytesIO(pdf_content),
             media_type='application/pdf',
             headers={
-                'Content-Disposition': f'attachment; filename="factura_{inv.folio_fiscal}.pdf"',
+                'Content-Disposition': f'attachment; filename="{filename}"',
                 'Content-Type': 'application/pdf'
             }
         )
@@ -363,12 +343,16 @@ def download_payment_proof(
         # Decompress proof from database
         proof_content = PDFStorage.decompress_pdf(inv.comprobante_pago_data)
         
+        # Generate standardized filename
+        sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
+        filename = f"PAGP_{inv.folio_fiscal}_{sanitized_proveedor}.pdf"
+        
         # Serve decompressed proof
         return StreamingResponse(
             BytesIO(proof_content),
             media_type='application/pdf',
             headers={
-                'Content-Disposition': f'attachment; filename="comprobante_{inv.folio_fiscal}.pdf"',
+                'Content-Disposition': f'attachment; filename="{filename}"',
                 'Content-Type': 'application/pdf'
             }
         )

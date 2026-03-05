@@ -20,8 +20,6 @@ class InvoiceResponse(BaseModel):
     fecha_vencimiento: str
     folio_fiscal: str
     estatus: str
-    pdf_url: Optional[str] = None
-    comprobante_pago_url: Optional[str] = None
     fecha_pago_real: Optional[str] = None
     created_by: str
     created_by_nombre: Optional[str] = None
