@@ -145,6 +145,41 @@ app.include_router(audit_router)
 app.include_router(system_router)
 app.include_router(seed_router)
 
+# Endpoint de debug (solo en development)
+@app.get("/api/debug/users")
+def debug_users():
+    """Endpoint de debug para ver los usuarios creados. SOLO EN DEVELOPMENT."""
+    if os.environ.get("ENV") == "production":
+        return {"error": "No disponible en producción"}
+    
+    from backend.db.session import SessionLocal
+    from backend.models.user import User
+    
+    db = SessionLocal()
+    users = db.query(User).all()
+    db.close()
+    
+    return {
+        "total_usuarios": len(users),
+        "usuarios": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "nombre": u.nombre,
+                "rol": u.rol,
+                "activo": u.activo,
+                "password_hash_length": len(u.password) if u.password else 0,
+                "password_starts_with": u.password[:20] if u.password else None,
+            }
+            for u in users
+        ],
+        "credenciales_de_prueba": {
+            "admin": "admin@sistema.com:admin123",
+            "tesorero": "tesorero@sistema.com:tesorero123",
+            "usuario": "usuario@sistema.com:usuario123",
+        }
+    }
+
 # Montar archivos estáticos del frontend (solo si existen)
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
 if frontend_build_path.exists():
