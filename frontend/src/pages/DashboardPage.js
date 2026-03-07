@@ -205,21 +205,14 @@ const DashboardPage = () => {
       else fetchMyInvoices();
     } catch (error) {
       console.error('Error updating invoice:', error);
-      console.error('Error response:', error.response);
-      console.error('Error data:', error.response?.data);
+      console.error('Full error response:', JSON.stringify(error.response, null, 2));
       
-      let errorMsg = 'Error al actualizar la factura';
-      if (error.response?.data) {
-        if (typeof error.response.data === 'string') {
-          errorMsg = error.response.data;
-        } else if (error.response.data.detail) {
-          errorMsg = error.response.data.detail;
-        } else if (error.response.data.message) {
-          errorMsg = error.response.data.message;
-        }
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
+      // Extraer el mensaje de error del backend
+      const errorMsg = error.response?.data?.detail 
+        || error.response?.data?.message 
+        || error.response?.data 
+        || error.message 
+        || 'Error al actualizar la factura';
       
       toast.error(errorMsg);
     } finally {
