@@ -232,7 +232,7 @@ def update_invoice_status(
         if not inv.comprobante_pago_data:
             raise HTTPException(
                 status_code=400,
-                detail="No se puede cambiar a 'Pagada' sin un comprobante de pago PDF cargado.",
+                detail="Error: Se necesita subir un comprobante de pago",
             )
 
     try:

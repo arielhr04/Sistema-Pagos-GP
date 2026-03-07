@@ -406,7 +406,7 @@ const KanbanPage = () => {
     if (!selectedInvoice) return;
 
     if (newStatus === 'Pagada' && !paymentProofFile) {
-      toast.error('No se puede cambiar a Pagada sin subir un comprobante PDF');
+      toast.error('Error: Se necesita subir un comprobante de pago');
       return;
     }
 
