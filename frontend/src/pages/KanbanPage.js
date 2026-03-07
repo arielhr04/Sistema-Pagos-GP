@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { useDropzone } from 'react-dropzone';
 import {
   DndContext,
   DragOverlay,
@@ -355,8 +356,21 @@ const KanbanPage = () => {
     } catch (error) {
       console.error('Error updating status:', error);
       console.error('Error response:', error.response);
-      console.error('Error detail:', error.response?.data?.detail);
-      const errorMsg = error.response?.data?.detail || 'Error al actualizar el estatus';
+      console.error('Error data:', error.response?.data);
+      
+      let errorMsg = 'Error al actualizar el estatus';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMsg = error.response.data;
+        } else if (error.response.data.detail) {
+          errorMsg = error.response.data.detail;
+        } else if (error.response.data.message) {
+          errorMsg = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
       toast.error(errorMsg);
       // Revert on error
       setInvoices(previousInvoices);
@@ -384,19 +398,6 @@ const KanbanPage = () => {
   };
 
   const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
-
-  const isValidPdfFile = (file) => {
-    if (!file) return false;
-    const fileName = (file.name || '').toLowerCase();
-    return file.type === 'application/pdf' || fileName.endsWith('.pdf');
-  };
-
-  const getDroppedFile = (e) => e.dataTransfer?.files?.[0] || null;
-
-  const preventDragDefaults = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
 
   const openInvoiceDialog = (invoice) => {
     setSelectedInvoice(invoice);
@@ -449,8 +450,21 @@ const KanbanPage = () => {
     } catch (error) {
       console.error('Error updating invoice:', error);
       console.error('Error response:', error.response);
-      console.error('Error detail:', error.response?.data?.detail);
-      const errorMsg = error.response?.data?.detail || 'Error al actualizar la factura';
+      console.error('Error data:', error.response?.data);
+      
+      let errorMsg = 'Error al actualizar la factura';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMsg = error.response.data;
+        } else if (error.response.data.detail) {
+          errorMsg = error.response.data.detail;
+        } else if (error.response.data.message) {
+          errorMsg = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
       toast.error(errorMsg);
     } finally {
       setUpdating(false);
@@ -460,11 +474,6 @@ const KanbanPage = () => {
   const handleProofFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
-    if (!isValidPdfFile(file)) {
-      toast.error('Solo se permiten archivos PDF');
-      return;
-    }
 
     if (file.size > MAX_PDF_SIZE_BYTES) {
       toast.error('El archivo no puede superar 10MB');
@@ -502,41 +511,28 @@ const KanbanPage = () => {
     }
   };
 
-  const handleProofDragOver = (e) => {
-    preventDragDefaults(e);
-    setIsDraggingFile(true);
-  };
-
-  const handleProofDragLeave = (e) => {
-    preventDragDefaults(e);
-    // Solo resetear si realmente salimos del contenedor
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
-    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
-      setIsDraggingFile(false);
+  // Dropzone for payment proof
+  const { getRootProps: getProofRootProps, getInputProps: getProofInputProps, isDragActive: isProofDragActive } = useDropzone({
+    accept: { 'application/pdf': ['.pdf'] },
+    maxSize: MAX_PDF_SIZE_BYTES,
+    multiple: false,
+    onDrop: (acceptedFiles, rejectedFiles) => {
+      if (rejectedFiles.length > 0) {
+        const error = rejectedFiles[0].errors[0];
+        if (error.code === 'file-too-large') {
+          toast.error('El archivo no puede superar 10MB');
+        } else if (error.code === 'file-invalid-type') {
+          toast.error('Solo se permiten archivos PDF');
+        } else {
+          toast.error('Error al cargar el archivo');
+        }
+        return;
+      }
+      if (acceptedFiles.length > 0) {
+        handleProofFileChange({ target: { files: [acceptedFiles[0]] } });
+      }
     }
-  };
-
-  const handleProofDrop = (e) => {
-    preventDragDefaults(e);
-    setIsDraggingFile(false);
-    const file = getDroppedFile(e);
-
-    if (!file) return;
-
-    if (!isValidPdfFile(file)) {
-      toast.error('Solo se permiten archivos PDF');
-      return;
-    }
-
-    if (file.size > MAX_PDF_SIZE_BYTES) {
-      toast.error('El archivo no puede superar 10MB');
-      return;
-    }
-
-    handleProofFileChange({ target: { files: [file] } });
-  };
+  });
 
   const downloadFile = async (url, filename) => {
     try {
@@ -701,25 +697,15 @@ const KanbanPage = () => {
                   <div className="space-y-2">
                     <Label>Comprobante de Pago (PDF)</Label>
                     <div 
+                      {...getProofRootProps()}
                       className={`border-2 border-dashed rounded-lg p-4 text-center ${
                         paymentProofFile ? 'border-green-500 bg-green-50' : 
-                        isDraggingFile ? 'border-red-500 bg-red-50' : 
+                        isProofDragActive ? 'border-red-500 bg-red-50' : 
                         'border-zinc-300'
                       }`}
-                      onDragEnter={handleProofDragOver}
-                      onDragOver={handleProofDragOver}
-                      onDragLeave={handleProofDragLeave}
-                      onDrop={handleProofDrop}
-                      onClick={() => document.getElementById('proof-upload').click()}
                       style={{ cursor: 'pointer' }}
                     >
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={handleProofFileChange}
-                        className="hidden"
-                        id="proof-upload"
-                      />
+                      <input {...getProofInputProps()} />
                       {paymentProofFile ? (
                         <div className="flex items-center justify-center gap-2 text-green-700">
                           <FileText className="w-5 h-5" />
