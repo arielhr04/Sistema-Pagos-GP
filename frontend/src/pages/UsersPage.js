@@ -72,10 +72,15 @@ const UsersPage = () => {
   const fetchUsers = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/api/users`, getAuthHeader());
-      setUsers(response.data);
+      const usersData = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.items)
+          ? response.data.items
+          : [];
+      setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
-      toast.error('Error al cargar usuarios');
+      toast.error(error.response?.data?.detail || 'Error al cargar usuarios');
     } finally {
       setLoading(false);
     }

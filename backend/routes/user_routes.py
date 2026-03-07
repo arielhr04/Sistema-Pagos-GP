@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime
 import uuid
 from io import BytesIO
+import logging
 from openpyxl import Workbook
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,15 @@ from backend.models.user import User
 from backend.models.area import Area
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
+logger = logging.getLogger(__name__)
+
+
+def _to_iso_datetime(value) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 # Users Routes
 @router.post("/", response_model=UserResponse)
@@ -58,26 +68,33 @@ def create_user(user_data: UserCreate, current_user: User = Depends(require_role
         area_id=user_obj.area_id,
         area_nombre=area_nombre,
         activo=user_obj.activo,
-        created_at=user_obj.created_at.isoformat(),
+        created_at=_to_iso_datetime(user_obj.created_at),
     )
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
     users = db.query(User).all()
     areas = {a.id: a.nombre for a in db.query(Area).all()}
-    return [
-        UserResponse(
-            id=u.id,
-            email=u.email,
-            nombre=u.nombre,
-            rol=u.rol,
-            area_id=u.area_id,
-            area_nombre=areas.get(u.area_id),
-            activo=u.activo,
-            created_at=u.created_at.isoformat(),
-        )
-        for u in users
-    ]
+    response_items: List[UserResponse] = []
+
+    for u in users:
+        try:
+            response_items.append(
+                UserResponse(
+                    id=u.id,
+                    email=u.email,
+                    nombre=u.nombre,
+                    rol=u.rol,
+                    area_id=u.area_id,
+                    area_nombre=areas.get(u.area_id),
+                    activo=u.activo,
+                    created_at=_to_iso_datetime(u.created_at),
+                )
+            )
+        except Exception:
+            logger.exception("Error serializando usuario %s", u.id)
+
+    return response_items
 
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(user_id: str, user_data: UserUpdate, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
@@ -111,7 +128,7 @@ def update_user(user_id: str, user_data: UserUpdate, current_user: User = Depend
         area_id=user.area_id,
         area_nombre=area_nombre,
         activo=user.activo,
-        created_at=user.created_at.isoformat(),
+        created_at=_to_iso_datetime(user.created_at),
     )
 
 @router.delete("/{user_id}")
@@ -124,6 +141,7 @@ def delete_user(user_id: str, current_user: User = Depends(require_roles(RoleEnu
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     db.delete(user)
     db.commit()
+    return {"message": "Usuario eliminado"}
 
 
 @router.get("/export/excel")
@@ -152,4 +170,3 @@ def export_users_excel(current_user: User = Depends(require_roles(RoleEnum.ADMIN
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=usuarios.xlsx"},
     )
-    return {"message": "Usuario eliminado"}
