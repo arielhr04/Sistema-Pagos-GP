@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("🚀 Iniciando aplicación...")
+    logger.info("Iniciando aplicación...")
     
     # Crear tablas
     Base.metadata.create_all(bind=engine)
-    logger.info("✅ Tablas de base de datos creadas/verificadas")
+    logger.info("Tablas de base de datos creadas/verificadas")
     
     # Auto-seed: crear usuarios iniciales si la BD está vacía
     try:
@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
         user_count = db.query(User).count()
         
         if user_count == 0:
-            logger.info("📊 Base de datos vacía. Ejecutando seed automático...")
+            logger.info("Base de datos vacía. Ejecutando seed automático...")
             
             from uuid import uuid4
             from datetime import datetime
@@ -100,20 +100,20 @@ async def lifespan(app: FastAPI):
             db.add_all(users)
             db.commit()
             
-            logger.info("✅ Seed completado. Usuarios creados:")
-            logger.info("   📧 admin@sistema.com : admin123")
-            logger.info("   📧 tesorero@sistema.com : tesorero123")
-            logger.info("   📧 usuario@sistema.com : usuario123")
+            logger.info("Seed completado. Usuarios creados:")
+            logger.info("   admin@sistema.com : admin123")
+            logger.info("   tesorero@sistema.com : tesorero123")
+            logger.info("   usuario@sistema.com : usuario123")
         else:
-            logger.info(f"✅ Base de datos con {user_count} usuarios existentes")
+            logger.info(f"Base de datos con {user_count} usuarios existentes")
         
         db.close()
     except Exception as e:
-        logger.error(f"⚠️ Error en seed automático: {e}")
+        logger.error(f"Error en seed automático: {e}")
     
     yield
     # Shutdown
-    logger.info("🛑 Cerrando aplicación...")
+    logger.info("Cerrando aplicación...")
 
 app = FastAPI(title="Sistema de Gestión de Facturas", lifespan=lifespan)
 
@@ -210,7 +210,7 @@ def debug_verify_password(email: str, password: str):
         "password_ingresada": password,
         "password_hash_almacenado": user.password[:30] + "...",
         "password_verificada": is_valid,
-        "mensaje": "✅ Contraseña correcta" if is_valid else "❌ Contraseña incorrecta",
+        "mensaje": "Contraseña correcta" if is_valid else "❌ Contraseña incorrecta",
         "usuario_nombre": user.nombre,
         "usuario_rol": user.rol
     }
@@ -236,14 +236,14 @@ def debug_routes():
 # Montar archivos estáticos del frontend (solo si existen)
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
 if frontend_build_path.exists():
-    logger.info(f"📁 Sirviendo frontend desde: {frontend_build_path}")
+    logger.info(f"Sirviendo frontend desde: {frontend_build_path}")
     app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="frontend")
 else:
-    logger.warning(f"⚠️ No encontrado: {frontend_build_path} - Frontend no será servido desde el backend")
+    logger.warning(f"No encontrado: {frontend_build_path} - Frontend no será servido desde el backend")
 
 # Permitir ejecución directa con python
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8080))
-    logger.info(f"🚀 Iniciando servidor en puerto {port}")
+    logger.info(f"Iniciando servidor en puerto {port}")
     uvicorn.run("backend.server:app", host="0.0.0.0", port=port, reload=False)

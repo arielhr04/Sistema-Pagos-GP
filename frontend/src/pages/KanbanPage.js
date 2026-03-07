@@ -360,7 +360,7 @@ const KanbanPage = () => {
     }
   };
 
-  const handleDragOver = (event) => {
+  const handleKanbanDragOver = (event) => {
     const { active, over } = event;
     if (!over) return;
 
@@ -378,6 +378,21 @@ const KanbanPage = () => {
         setInvoices(arrayMove(invoices, activeIndex, overIndex));
       }
     }
+  };
+
+  const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+
+  const isValidPdfFile = (file) => {
+    if (!file) return false;
+    const fileName = (file.name || '').toLowerCase();
+    return file.type === 'application/pdf' || fileName.endsWith('.pdf');
+  };
+
+  const getDroppedFile = (e) => e.dataTransfer?.files?.[0] || null;
+
+  const preventDragDefaults = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const openInvoiceDialog = (invoice) => {
@@ -437,34 +452,16 @@ const KanbanPage = () => {
   };
 
   const handleProofFileChange = async (e) => {
-
-      const handleDragOver = (e) => {
-        e.preventDefault();
-        setIsDraggingFile(true);
-      };
-
-      const handleDragLeave = (e) => {
-        e.preventDefault();
-        setIsDraggingFile(false);
-      };
-
-      const handleDropFile = (e) => {
-        e.preventDefault();
-        setIsDraggingFile(false);
-        const file = e.dataTransfer.files[0];
-        if (file) {
-          if (!file.type.includes('pdf')) {
-            toast.error('Solo se permiten archivos PDF');
-            return;
-          }
-          handleProofFileChange({ target: { files: [file] } });
-        }
-      };
     const file = e.target.files[0];
     if (!file) return;
     
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
+    if (!isValidPdfFile(file)) {
       toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
       return;
     }
     
@@ -497,6 +494,36 @@ const KanbanPage = () => {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleProofDragOver = (e) => {
+    preventDragDefaults(e);
+    setIsDraggingFile(true);
+  };
+
+  const handleProofDragLeave = (e) => {
+    preventDragDefaults(e);
+    setIsDraggingFile(false);
+  };
+
+  const handleProofDrop = (e) => {
+    preventDragDefaults(e);
+    setIsDraggingFile(false);
+    const file = getDroppedFile(e);
+
+    if (!file) return;
+
+    if (!isValidPdfFile(file)) {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
+      return;
+    }
+
+    handleProofFileChange({ target: { files: [file] } });
   };
 
   const downloadFile = async (url, filename) => {
@@ -562,7 +589,7 @@ const KanbanPage = () => {
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
+        onDragOver={handleKanbanDragOver}
       >
         <div className="flex gap-6 overflow-x-auto pb-4">
           {COLUMNS.map((column) => (
@@ -667,9 +694,10 @@ const KanbanPage = () => {
                         isDraggingFile ? 'border-red-500 bg-red-50' : 
                         'border-zinc-300'
                       }`}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDropFile}
+                      onDragEnter={handleProofDragOver}
+                      onDragOver={handleProofDragOver}
+                      onDragLeave={handleProofDragLeave}
+                      onDrop={handleProofDrop}
                     >
                       <input
                         type="file"

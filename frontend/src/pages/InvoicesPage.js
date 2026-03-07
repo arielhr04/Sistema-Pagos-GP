@@ -144,13 +144,34 @@ const InvoicesPage = () => {
     }
   };
 
+  const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+
+  const isValidPdfFile = (file) => {
+    if (!file) return false;
+    const fileName = (file.name || '').toLowerCase();
+    return file.type === 'application/pdf' || fileName.endsWith('.pdf');
+  };
+
+  const getDroppedFile = (e) => e.dataTransfer?.files?.[0] || null;
+
+  const preventDragDefaults = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   const handleProofFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.type !== 'application/pdf') {
+    if (!isValidPdfFile(file)) {
       toast.error('Solo se permiten archivos PDF');
       return;
     }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
+      return;
+    }
+
     setPaymentProofFile(file);
     if (!selectedInvoice) return;
     setUpdating(true);
@@ -179,22 +200,26 @@ const InvoicesPage = () => {
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDragging(true);
   };
 
   const handleDragLeave = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDragging(false);
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
+    const file = getDroppedFile(e);
     if (file) {
-      if (!file.type.includes('pdf')) {
+      if (!isValidPdfFile(file)) {
         toast.error('Solo se permiten archivos PDF');
+        return;
+      }
+      if (file.size > MAX_PDF_SIZE_BYTES) {
+        toast.error('El archivo no puede superar 10MB');
         return;
       }
       // Trigger the same handler as file input
@@ -500,6 +525,7 @@ const InvoicesPage = () => {
                             isDragging ? 'border-red-500 bg-red-50' : 
                             'border-zinc-300'
                           }`}
+                          onDragEnter={handleDragOver}
                           onDragOver={handleDragOver}
                           onDragLeave={handleDragLeave}
                           onDrop={handleDrop}

@@ -28,7 +28,8 @@ def _to_iso_datetime(value) -> str:
     return str(value)
 
 # Users Routes
-@router.post("/", response_model=UserResponse)
+@router.post("", response_model=UserResponse)
+@router.post("/", response_model=UserResponse, include_in_schema=False)
 def create_user(user_data: UserCreate, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user_data.email).first()
     if existing:
@@ -71,7 +72,8 @@ def create_user(user_data: UserCreate, current_user: User = Depends(require_role
         created_at=_to_iso_datetime(user_obj.created_at),
     )
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("", response_model=List[UserResponse])
+@router.get("/", response_model=List[UserResponse], include_in_schema=False)
 def get_users(current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
     users = db.query(User).all()
     areas = {a.id: a.nombre for a in db.query(Area).all()}

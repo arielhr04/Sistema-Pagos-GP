@@ -214,8 +214,13 @@ const DashboardPage = () => {
     const file = e.target.files[0];
     if (!file) return;
     
-    if (file.type !== 'application/pdf') {
+    if (!isValidPdfFile(file)) {
       toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
       return;
     }
 
@@ -308,14 +313,29 @@ const DashboardPage = () => {
     fetchData();
   }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices]);
 
+  const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+
+  const isValidPdfFile = (file) => {
+    if (!file) return false;
+    const fileName = (file.name || '').toLowerCase();
+    return file.type === 'application/pdf' || fileName.endsWith('.pdf');
+  };
+
+  const getDroppedFile = (e) => e.dataTransfer?.files?.[0] || null;
+
+  const preventDragDefaults = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
+      if (!isValidPdfFile(file)) {
         toast.error('Solo se permiten archivos PDF');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_PDF_SIZE_BYTES) {
         toast.error('El archivo no puede superar 10MB');
         return;
       }
@@ -324,25 +344,25 @@ const DashboardPage = () => {
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDragging(true);
   };
 
   const handleDragLeave = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDragging(false);
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
+    const file = getDroppedFile(e);
     if (file) {
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
+      if (!isValidPdfFile(file)) {
         toast.error('Solo se permiten archivos PDF');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_PDF_SIZE_BYTES) {
         toast.error('El archivo no puede superar 10MB');
         return;
       }
@@ -351,22 +371,26 @@ const DashboardPage = () => {
   };
 
   const handleDragOverProof = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDraggingProof(true);
   };
 
   const handleDragLeaveProof = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDraggingProof(false);
   };
 
   const handleDropProof = (e) => {
-    e.preventDefault();
+    preventDragDefaults(e);
     setIsDraggingProof(false);
-    const file = e.dataTransfer.files[0];
+    const file = getDroppedFile(e);
     if (file) {
-      if (!file.type.includes('pdf')) {
+      if (!isValidPdfFile(file)) {
         toast.error('Solo se permiten archivos PDF');
+        return;
+      }
+      if (file.size > MAX_PDF_SIZE_BYTES) {
+        toast.error('El archivo no puede superar 10MB');
         return;
       }
       // Trigger the same handler as file input
@@ -572,6 +596,7 @@ const DashboardPage = () => {
                         isDragging ? 'border-red-500 bg-red-50' : 
                         'border-zinc-300 hover:border-red-500'
                       }`}
+                      onDragEnter={handleDragOver}
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
@@ -768,6 +793,7 @@ const DashboardPage = () => {
                             isDraggingProof ? 'border-red-500 bg-red-50' : 
                             'border-zinc-300'
                           }`}
+                          onDragEnter={handleDragOverProof}
                           onDragOver={handleDragOverProof}
                           onDragLeave={handleDragLeaveProof}
                           onDrop={handleDropProof}
