@@ -612,6 +612,7 @@ const DashboardPage = () => {
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
+                      onClick={() => document.getElementById('pdf-upload-dashboard').click()}
                     >
                       <input
                         type="file"
@@ -621,19 +622,17 @@ const DashboardPage = () => {
                         id="pdf-upload-dashboard"
                         data-testid="dashboard-pdf-input"
                       />
-                      <label htmlFor="pdf-upload-dashboard" className="cursor-pointer" style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
-                        {pdfFile ? (
-                          <div className="flex items-center justify-center gap-2 text-green-700">
-                            <FileText className="w-6 h-6" />
-                            <span className="font-medium text-sm">{pdfFile.name}</span>
-                          </div>
-                        ) : (
-                          <div className="text-zinc-500">
-                            <Upload className="w-6 h-6 mx-auto mb-1" />
-                            <p className="text-sm font-medium">Arrastra aquí el archivo PDF o haz clic para seleccionar</p>
-                          </div>
-                        )}
-                      </label>
+                      {pdfFile ? (
+                        <div className="flex items-center justify-center gap-2 text-green-700">
+                          <FileText className="w-6 h-6" />
+                          <span className="font-medium text-sm">{pdfFile.name}</span>
+                        </div>
+                      ) : (
+                        <div className="text-zinc-500">
+                          <Upload className="w-6 h-6 mx-auto mb-1" />
+                          <p className="text-sm font-medium">Arrastra aquí el archivo PDF o haz clic para seleccionar</p>
+                        </div>
+                      )}
                     </div>
                     {!pdfFile && (
                       <p className="text-xs text-zinc-500">* El archivo PDF es obligatorio para registrar la factura</p>
@@ -809,6 +808,8 @@ const DashboardPage = () => {
                           onDragOver={handleDragOverProof}
                           onDragLeave={handleDragLeaveProof}
                           onDrop={handleDropProof}
+                          onClick={() => document.getElementById('proof-upload-dashboard').click()}
+                          style={{ cursor: 'pointer' }}
                         >
                           <input
                             type="file"
@@ -817,19 +818,17 @@ const DashboardPage = () => {
                             className="hidden"
                             id="proof-upload-dashboard"
                           />
-                          <label htmlFor="proof-upload-dashboard" className="cursor-pointer" style={{ pointerEvents: isDraggingProof ? 'none' : 'auto' }}>
-                            {paymentProofFile ? (
-                              <div className="flex items-center justify-center gap-2 text-green-700">
-                                <FileText className="w-5 h-5" />
-                                <span className="text-sm">{paymentProofFile.name}</span>
-                              </div>
-                            ) : (
-                              <div className="text-zinc-500">
-                                <Upload className="w-6 h-6 mx-auto mb-1" />
-                                <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
-                              </div>
-                            )}
-                          </label>
+                          {paymentProofFile ? (
+                            <div className="flex items-center justify-center gap-2 text-green-700">
+                              <FileText className="w-5 h-5" />
+                              <span className="text-sm">{paymentProofFile.name}</span>
+                            </div>
+                          ) : (
+                            <div className="text-zinc-500">
+                              <Upload className="w-6 h-6 mx-auto mb-1" />
+                              <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </>
