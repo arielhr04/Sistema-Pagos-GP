@@ -269,6 +269,7 @@ const KanbanPage = () => {
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [paymentDate, setPaymentDate] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -335,11 +336,6 @@ const KanbanPage = () => {
 
     if (!targetStatus || activeInvoice.estatus === targetStatus) return;
 
-    if (targetStatus === 'Pagada' && !activeInvoice.comprobante_pago_url) {
-      toast.error('No se puede mover a Pagada sin comprobante PDF');
-      return;
-    }
-
     // Optimistic update - update UI immediately
     const previousInvoices = [...invoices];
     setInvoices(invoices.map(inv => 
@@ -394,7 +390,7 @@ const KanbanPage = () => {
   const handleStatusChange = async (newStatus) => {
     if (!selectedInvoice) return;
 
-    if (newStatus === 'Pagada' && !selectedInvoice.comprobante_pago_url && !paymentProofFile) {
+    if (newStatus === 'Pagada' && !paymentProofFile) {
       toast.error('No se puede cambiar a Pagada sin subir un comprobante PDF');
       return;
     }
@@ -441,6 +437,29 @@ const KanbanPage = () => {
   };
 
   const handleProofFileChange = async (e) => {
+
+      const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDraggingFile(true);
+      };
+
+      const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDraggingFile(false);
+      };
+
+      const handleDropFile = (e) => {
+        e.preventDefault();
+        setIsDraggingFile(false);
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          if (!file.type.includes('pdf')) {
+            toast.error('Solo se permiten archivos PDF');
+            return;
+          }
+          handleProofFileChange({ target: { files: [file] } });
+        }
+      };
     const file = e.target.files[0];
     if (!file) return;
     
@@ -642,7 +661,16 @@ const KanbanPage = () => {
 
                   <div className="space-y-2">
                     <Label>Comprobante de Pago (PDF)</Label>
-                    <div className={`border-2 border-dashed rounded-lg p-4 text-center ${paymentProofFile ? 'border-green-500 bg-green-50' : 'border-zinc-300'}`}>
+                    <div 
+                      className={`border-2 border-dashed rounded-lg p-4 text-center ${
+                        paymentProofFile ? 'border-green-500 bg-green-50' : 
+                        isDraggingFile ? 'border-red-500 bg-red-50' : 
+                        'border-zinc-300'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDropFile}
+                    >
                       <input
                         type="file"
                         accept=".pdf"
@@ -659,7 +687,7 @@ const KanbanPage = () => {
                         ) : (
                           <div className="text-zinc-500">
                             <Upload className="w-6 h-6 mx-auto mb-1" />
-                            <p className="text-sm">Subir comprobante</p>
+                            <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
                           </div>
                         )}
                       </label>
@@ -668,20 +696,18 @@ const KanbanPage = () => {
                 </>
               )}
 
-              {selectedInvoice.pdf_url && (
-                <Button
-                  onClick={() => downloadFile(selectedInvoice.pdf_url, `factura_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
-                  data-testid="download-invoice-pdf"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Descargar PDF de Factura
-                </Button>
-              )}
+              <Button
+                onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
+                data-testid="download-invoice-pdf"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Descargar PDF de Factura
+              </Button>
 
-              {selectedInvoice.comprobante_pago_url && (
+              {selectedInvoice.estatus === 'Pagada' && (
                 <Button
-                  onClick={() => downloadFile(selectedInvoice.comprobante_pago_url, `comprobante_${selectedInvoice.folio_fiscal}.pdf`)}
+                  onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg"
                   data-testid="download-payment-proof"
                 >

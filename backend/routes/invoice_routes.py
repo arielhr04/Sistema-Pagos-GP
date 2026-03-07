@@ -65,12 +65,18 @@ def create_invoice(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Validate PDF
+    # Validate PDF file exists and is not empty
+    if not pdf_file or not pdf_file.filename:
+        raise HTTPException(status_code=400, detail="Debe adjuntar un archivo PDF")
+    
     if not pdf_file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
 
     # Check file size (max 10MB)
     content = pdf_file.file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="El archivo PDF está vacío")
+    
     if len(content) > MAX_PDF_SIZE_BYTES:
         raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
 
