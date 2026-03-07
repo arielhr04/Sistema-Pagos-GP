@@ -706,7 +706,7 @@ const KanbanPage = () => {
                         className="hidden"
                         id="proof-upload"
                       />
-                      <label htmlFor="proof-upload" className="cursor-pointer">
+                      <label htmlFor="proof-upload" className="cursor-pointer" style={{ pointerEvents: isDraggingFile ? 'none' : 'auto' }}>
                         {paymentProofFile ? (
                           <div className="flex items-center justify-center gap-2 text-green-700">
                             <FileText className="w-5 h-5" />

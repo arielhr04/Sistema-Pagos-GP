@@ -537,7 +537,7 @@ const InvoicesPage = () => {
                             className="hidden"
                             id="proof-upload-invoices"
                           />
-                          <label htmlFor="proof-upload-invoices" className="cursor-pointer">
+                          <label htmlFor="proof-upload-invoices" className="cursor-pointer" style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
                             {paymentProofFile ? (
                               <div className="flex items-center justify-center gap-2 text-green-700">
                                 <FileText className="w-5 h-5" />

@@ -609,7 +609,7 @@ const DashboardPage = () => {
                         id="pdf-upload-dashboard"
                         data-testid="dashboard-pdf-input"
                       />
-                      <label htmlFor="pdf-upload-dashboard" className="cursor-pointer">
+                      <label htmlFor="pdf-upload-dashboard" className="cursor-pointer" style={{ pointerEvents: isDragging ? 'none' : 'auto' }}>
                         {pdfFile ? (
                           <div className="flex items-center justify-center gap-2 text-green-700">
                             <FileText className="w-6 h-6" />
@@ -805,7 +805,7 @@ const DashboardPage = () => {
                             className="hidden"
                             id="proof-upload-dashboard"
                           />
-                          <label htmlFor="proof-upload-dashboard" className="cursor-pointer">
+                          <label htmlFor="proof-upload-dashboard" className="cursor-pointer" style={{ pointerEvents: isDraggingProof ? 'none' : 'auto' }}>
                             {paymentProofFile ? (
                               <div className="flex items-center justify-center gap-2 text-green-700">
                                 <FileText className="w-5 h-5" />
