@@ -204,7 +204,10 @@ const DashboardPage = () => {
       else fetchMyInvoices();
     } catch (error) {
       console.error('Error updating invoice:', error);
-      toast.error(error.response?.data?.detail || 'Error al actualizar factura');
+      console.error('Error response:', error.response);
+      console.error('Error detail:', error.response?.data?.detail);
+      const errorMsg = error.response?.data?.detail || 'Error al actualizar la factura';
+      toast.error(errorMsg);
     } finally {
       setUpdating(false);
     }

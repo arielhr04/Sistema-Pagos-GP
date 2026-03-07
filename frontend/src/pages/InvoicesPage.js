@@ -138,7 +138,10 @@ const InvoicesPage = () => {
       toast.success('Estatus actualizado');
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error(error.response?.data?.detail || 'Error al actualizar estatus');
+      console.error('Error response:', error.response);
+      console.error('Error detail:', error.response?.data?.detail);
+      const errorMsg = error.response?.data?.detail || 'Error al actualizar el estatus';
+      toast.error(errorMsg);
     } finally {
       setUpdating(false);
     }

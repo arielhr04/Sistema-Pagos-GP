@@ -354,7 +354,10 @@ const KanbanPage = () => {
       toast.success(`Factura movida a "${targetStatus}"`);
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error(error.response?.data?.detail || 'Error al actualizar estatus');
+      console.error('Error response:', error.response);
+      console.error('Error detail:', error.response?.data?.detail);
+      const errorMsg = error.response?.data?.detail || 'Error al actualizar el estatus';
+      toast.error(errorMsg);
       // Revert on error
       setInvoices(previousInvoices);
     }
@@ -445,7 +448,10 @@ const KanbanPage = () => {
       fetchInvoices();
     } catch (error) {
       console.error('Error updating invoice:', error);
-      toast.error(error.response?.data?.detail || 'Error al actualizar factura');
+      console.error('Error response:', error.response);
+      console.error('Error detail:', error.response?.data?.detail);
+      const errorMsg = error.response?.data?.detail || 'Error al actualizar la factura';
+      toast.error(errorMsg);
     } finally {
       setUpdating(false);
     }
