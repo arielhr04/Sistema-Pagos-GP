@@ -206,7 +206,13 @@ const InvoicesPage = () => {
 
   const handleDragLeave = (e) => {
     preventDragDefaults(e);
-    setIsDragging(false);
+    // Solo resetear si realmente salimos del contenedor
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e) => {
