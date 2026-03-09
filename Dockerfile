@@ -3,7 +3,7 @@ FROM node:20-slim AS frontend-builder
 WORKDIR /frontend
 
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm install
+RUN npm install --no-audit --no-fund
 
 COPY frontend/ ./
 RUN npm run build
@@ -32,14 +32,15 @@ RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://p
 RUN apt-get update \
     && ACCEPT_EULA=Y apt-get install -y msodbcsql17
 
+# instalar dependencias python (en capa cacheable)
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 # copiar proyecto
 COPY . .
 
 # copiar build de frontend generado en etapa anterior
 COPY --from=frontend-builder /frontend/build ./frontend/build
-
-# instalar dependencias python
-RUN pip install --no-cache-dir -r requirements.txt
 
 # puerto Railway (importante: Railway inyecta PORT automáticamente)
 ENV PORT=8080
