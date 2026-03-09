@@ -1,3 +1,13 @@
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -24,6 +34,9 @@ RUN apt-get update \
 
 # copiar proyecto
 COPY . .
+
+# copiar build de frontend generado en etapa anterior
+COPY --from=frontend-builder /frontend/build ./frontend/build
 
 # instalar dependencias python
 RUN pip install --no-cache-dir -r requirements.txt
