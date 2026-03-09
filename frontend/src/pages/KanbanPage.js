@@ -499,9 +499,12 @@ const KanbanPage = () => {
 
   // Dropzone for payment proof
   const { getRootProps: getProofRootProps, getInputProps: getProofInputProps, isDragActive: isProofDragActive } = useDropzone({
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: {
+      'application/pdf': ['.pdf']
+    },
     maxSize: MAX_PDF_SIZE_BYTES,
     multiple: false,
+    noKeyboard: true,
     onDrop: (acceptedFiles, rejectedFiles) => {
       if (rejectedFiles.length > 0) {
         const error = rejectedFiles[0].errors[0];
