@@ -225,14 +225,17 @@ const InvoicesPage = () => {
         responseType: 'blob',
       });
       
-      // Extract filename from URL
-      const urlParts = url.split('/');
-      const serverFilename = urlParts[urlParts.length - 1];
-      
       const downloadUrl = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = serverFilename || filename;
+      // Extract filename from Content-Disposition header (sent by server)
+      let finalFilename = filename;
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="([^"]+)"/);  
+        if (match) finalFilename = match[1];
+      }
+      link.download = finalFilename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
