@@ -59,7 +59,14 @@ def log_movement(db: Session, factura_id: str, usuario_id: str, estatus_anterior
 def to_iso_string(value) -> Optional[str]:
     if value is None:
         return None
-    return value if isinstance(value, str) else value.isoformat()
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, datetime):
+        normalized = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return normalized.astimezone(timezone.utc).isoformat()
+
+    return str(value)
 
 
 def get_first_treasury_review(db: Session, invoice_id: str) -> Optional[MovementHistory]:

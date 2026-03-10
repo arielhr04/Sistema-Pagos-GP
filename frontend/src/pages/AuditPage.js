@@ -15,6 +15,7 @@ import {
 import { History, ArrowRight, FileText, User } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const CLIENT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 const STATUS_STYLES = {
   'Capturada': 'bg-zinc-100 text-zinc-700',
@@ -50,13 +51,18 @@ const AuditPage = () => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
+
+    if (Number.isNaN(date.getTime())) {
+      return dateString;
+    }
+
     return new Intl.DateTimeFormat('es-MX', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: 'America/Mexico_City',
+      timeZone: CLIENT_TIMEZONE,
     }).format(date);
   };
 

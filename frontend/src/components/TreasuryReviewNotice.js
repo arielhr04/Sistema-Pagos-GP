@@ -1,5 +1,7 @@
 import { CheckCircle } from 'lucide-react';
 
+const CLIENT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
 const formatReviewDate = (dateString) => {
   const date = new Date(dateString);
 
@@ -13,6 +15,7 @@ const formatReviewDate = (dateString) => {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: CLIENT_TIMEZONE,
   }).format(date);
 };
 

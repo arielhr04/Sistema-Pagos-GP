@@ -56,6 +56,14 @@ const STATUS_STYLES = {
   'Rechazada': 'bg-red-100 text-red-700 border-red-200',
 };
 
+const parseDateOnly = (value) => {
+  if (!value) return null;
+  const datePart = String(value).slice(0, 10);
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
 const InvoicesPage = () => {
   const { getAuthHeader, token, user } = useAuth();
   const [invoices, setInvoices] = useState([]);
@@ -85,7 +93,7 @@ const InvoicesPage = () => {
   const hasPendingChanges = Boolean(selectedInvoice) && (
     Boolean(paymentProofFile) ||
     targetStatus !== (selectedInvoice?.estatus || '') ||
-    (targetStatus === 'Pagada' && selectedPaymentDateValue !== originalPaymentDateValue)
+    (!hasUploadedPaymentProof && targetStatus === 'Pagada' && selectedPaymentDateValue !== originalPaymentDateValue)
   );
 
   const fetchInvoices = useCallback(async () => {
@@ -137,7 +145,7 @@ const InvoicesPage = () => {
   const handleInvoiceClick = async (invoice) => {
     setSelectedInvoice(invoice);
     setPendingStatus(invoice.estatus);
-    setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
+    setPaymentDate(parseDateOnly(invoice.fecha_pago_real));
     setPaymentProofFile(null);
     setInvoiceReplacementPdfFile(null);
     setDialogOpen(true);
@@ -153,7 +161,7 @@ const InvoicesPage = () => {
 
       setSelectedInvoice(response.data);
       setPendingStatus(response.data.estatus);
-      setPaymentDate(response.data.fecha_pago_real ? new Date(response.data.fecha_pago_real) : null);
+      setPaymentDate(parseDateOnly(response.data.fecha_pago_real));
     } catch (error) {
       console.error('Error fetching invoice details:', error);
       toast.error('Error al cargar detalle de factura');
@@ -245,7 +253,7 @@ const InvoicesPage = () => {
 
       setSelectedInvoice(latestInvoice);
       setPendingStatus(latestInvoice.estatus);
-      setPaymentDate(latestInvoice.fecha_pago_real ? new Date(latestInvoice.fecha_pago_real) : null);
+  setPaymentDate(parseDateOnly(latestInvoice.fecha_pago_real));
       setPaymentProofFile(null);
       fetchInvoices();
       toast.success('Cambios guardados correctamente');
@@ -749,21 +757,30 @@ const InvoicesPage = () => {
                 </div>
               )}
 
-              <Button
-                onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Descargar PDF de Factura
-              </Button>
-
-              {selectedInvoice.estatus === 'Pagada' && (
+              {selectedInvoice.estatus === 'Pagada' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <Button
+                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Descargar PDF de Factura
+                  </Button>
+                  <Button
+                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Descargar Comprobante de Pago
+                  </Button>
+                </div>
+              ) : (
                 <Button
-                  onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg"
+                  onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Descargar Comprobante de Pago
+                  Descargar PDF de Factura
                 </Button>
               )}
             </div>
