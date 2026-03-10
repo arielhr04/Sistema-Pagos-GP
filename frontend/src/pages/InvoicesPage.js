@@ -67,6 +67,7 @@ const InvoicesPage = () => {
   const [exporting, setExporting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState('');
   const [paymentDate, setPaymentDate] = useState(null);
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [updating, setUpdating] = useState(false);
@@ -120,6 +121,7 @@ const InvoicesPage = () => {
 
   const handleInvoiceClick = async (invoice) => {
     setSelectedInvoice(invoice);
+    setPendingStatus(invoice.estatus);
     setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
     setPaymentProofFile(null);
     setDialogOpen(true);
@@ -134,6 +136,7 @@ const InvoicesPage = () => {
         : await axios.get(`${API_URL}/api/invoices/${invoice.id}`, getAuthHeader());
 
       setSelectedInvoice(response.data);
+      setPendingStatus(response.data.estatus);
       setPaymentDate(response.data.fecha_pago_real ? new Date(response.data.fecha_pago_real) : null);
     } catch (error) {
       console.error('Error fetching invoice details:', error);
@@ -141,39 +144,16 @@ const InvoicesPage = () => {
     }
   };
 
-  const handleStatusChange = async (newStatus) => {
-    if (!selectedInvoice) return;
-
-    setUpdating(true);
-    try {
-      const response = await axios.put(
-        `${API_URL}/api/invoices/${selectedInvoice.id}/status`,
-        { nuevo_estatus: newStatus, fecha_pago_real: paymentDate ? paymentDate.toISOString().slice(0, 10) : null },
-        getAuthHeader()
-      );
-      setSelectedInvoice(response.data);
-      fetchInvoices();
-      toast.success('Estatus actualizado');
-    } catch (error) {
-      console.error('Error updating status:', error);
-      console.error('Full error response:', JSON.stringify(error.response, null, 2));
-      
-      // Extraer el mensaje de error del backend
-      const errorMsg = error.response?.data?.detail 
-        || error.response?.data?.message 
-        || error.response?.data 
-        || error.message 
-        || 'Error al actualizar el estatus';
-      
-      toast.error(errorMsg);
-    } finally {
-      setUpdating(false);
+  const handleStatusChange = (newStatus) => {
+    setPendingStatus(newStatus);
+    if (newStatus !== 'Pagada') {
+      setPaymentProofFile(null);
     }
   };
 
   const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 
-  const handleProofFileChange = async (e) => {
+  const handleProofFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -183,27 +163,87 @@ const InvoicesPage = () => {
     }
 
     setPaymentProofFile(file);
+    toast.success('Archivo listo. Presiona "Confirmar cambios" para guardar.');
+  };
+
+  const handleConfirmChanges = async () => {
     if (!selectedInvoice) return;
+
+    const targetStatus = pendingStatus || selectedInvoice.estatus;
+    const selectedPaymentDate = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
+
+    if (targetStatus === 'Pagada' && selectedInvoice.estatus !== 'Pagada' && !paymentProofFile) {
+      toast.error('Se necesita subir un comprobante de pago antes de confirmar');
+      return;
+    }
+
+    if (paymentProofFile && targetStatus !== 'Pagada') {
+      toast.error('Para guardar comprobante, el estatus debe ser "Pagada"');
+      return;
+    }
+
     setUpdating(true);
     try {
-      const formData = new FormData();
-      formData.append('proof_file', file);
-      const response = await axios.post(
-        `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
-        formData,
-        { 
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data' 
-          } 
-        }
-      );
-      setSelectedInvoice(response.data);
+      let latestInvoice = selectedInvoice;
+
+      if (paymentProofFile) {
+        const formData = new FormData();
+        formData.append('proof_file', paymentProofFile);
+        const proofResponse = await axios.post(
+          `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
+          formData,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+        latestInvoice = proofResponse.data;
+      }
+
+      const latestPaymentDate = latestInvoice.fecha_pago_real
+        ? latestInvoice.fecha_pago_real.slice(0, 10)
+        : null;
+
+      const shouldUpdateStatus =
+        targetStatus !== latestInvoice.estatus ||
+        (targetStatus === 'Pagada' && selectedPaymentDate !== latestPaymentDate);
+
+      if (shouldUpdateStatus) {
+        const statusResponse = await axios.put(
+          `${API_URL}/api/invoices/${selectedInvoice.id}/status`,
+          {
+            nuevo_estatus: targetStatus,
+            fecha_pago_real: targetStatus === 'Pagada' ? selectedPaymentDate : null,
+          },
+          getAuthHeader()
+        );
+        latestInvoice = statusResponse.data;
+      }
+
+      if (!paymentProofFile && !shouldUpdateStatus) {
+        toast.error('No hay cambios por confirmar');
+        return;
+      }
+
+      setSelectedInvoice(latestInvoice);
+      setPendingStatus(latestInvoice.estatus);
+      setPaymentDate(latestInvoice.fecha_pago_real ? new Date(latestInvoice.fecha_pago_real) : null);
+      setPaymentProofFile(null);
       fetchInvoices();
-      toast.success('Comprobante subido y factura marcada como Pagada');
+      toast.success('Cambios guardados correctamente');
     } catch (error) {
-      console.error('Error uploading proof:', error);
-      toast.error(error.response?.data?.detail || 'Error al subir comprobante');
+      console.error('Error confirming invoice changes:', error);
+      console.error('Full error response:', JSON.stringify(error.response, null, 2));
+
+      const errorMsg = error.response?.data?.detail
+        || error.response?.data?.message
+        || error.response?.data
+        || error.message
+        || 'Error al confirmar cambios';
+
+      toast.error(errorMsg);
     } finally {
       setUpdating(false);
     }
@@ -490,8 +530,8 @@ const InvoicesPage = () => {
                   <div className="space-y-2">
                     <Label>Cambiar Estatus</Label>
                     <Select
-                      key={`status-${selectedInvoice.estatus}`}
-                      value={selectedInvoice.estatus}
+                      key={`status-${selectedInvoice.id}`}
+                      value={pendingStatus || selectedInvoice.estatus}
                       onValueChange={handleStatusChange}
                       disabled={updating}
                     >
@@ -508,7 +548,7 @@ const InvoicesPage = () => {
                     </Select>
                   </div>
 
-                  {selectedInvoice.estatus !== 'Pagada' && (
+                  {(pendingStatus === 'Pagada' || selectedInvoice.estatus === 'Pagada') && (
                     <>
                       <div className="space-y-2">
                         <Label>Fecha Real de Pago (opcional)</Label>
@@ -554,9 +594,29 @@ const InvoicesPage = () => {
                             </div>
                           )}
                         </div>
+                        {paymentProofFile && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setPaymentProofFile(null)}
+                            disabled={updating}
+                          >
+                            Cambiar archivo
+                          </Button>
+                        )}
                       </div>
                     </>
                   )}
+
+                  <Button
+                    type="button"
+                    onClick={handleConfirmChanges}
+                    className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                    disabled={updating}
+                  >
+                    {updating ? 'Guardando...' : 'Confirmar cambios'}
+                  </Button>
                 </>
               )}
 
