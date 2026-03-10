@@ -113,6 +113,7 @@ def build_invoice_response(
         folio_fiscal=inv.folio_fiscal,
         estatus=inv.estatus,
         fecha_pago_real=inv.fecha_pago_real,
+        comprobante_pago_subido=bool(inv.comprobante_pago_data),
         created_by=inv.created_by,
         created_by_nombre=created_by_nombre,
         revisada_por_tesoreria=bool(fecha_revision_tesoreria),

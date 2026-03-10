@@ -275,8 +275,10 @@ const KanbanPage = () => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [invoiceReplacementPdfFile, setInvoiceReplacementPdfFile] = useState(null);
   const invoicePdfInputRef = useRef(null);
+  const paymentProofInputRef = useRef(null);
 
   const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
+  const hasUploadedPaymentProof = Boolean(selectedInvoice?.comprobante_pago_subido);
   const selectedPaymentDateValue = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
   const originalPaymentDateValue = selectedInvoice?.fecha_pago_real
     ? selectedInvoice.fecha_pago_real.slice(0, 10)
@@ -752,64 +754,93 @@ const KanbanPage = () => {
                   </div>
 
                   {(pendingStatus === 'Pagada' || selectedInvoice.estatus === 'Pagada') && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Fecha Real de Pago (opcional)</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start">
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {paymentDate ? format(paymentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={paymentDate}
-                              onSelect={setPaymentDate}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-
+                    hasUploadedPaymentProof ? (
                       <div className="space-y-2">
                         <Label>Comprobante de Pago (PDF)</Label>
-                        <div 
-                          {...getProofRootProps()}
-                          className={`border-2 border-dashed rounded-lg p-4 text-center ${
-                            paymentProofFile ? 'border-green-500 bg-green-50' : 
-                            isProofDragActive ? 'border-red-500 bg-red-50' : 
-                            'border-zinc-300'
-                          }`}
-                          style={{ cursor: 'pointer' }}
+                        <input
+                          ref={paymentProofInputRef}
+                          type="file"
+                          accept=".pdf"
+                          className="hidden"
+                          onChange={handleProofFileChange}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => paymentProofInputRef.current?.click()}
+                          disabled={updating}
                         >
-                          <input {...getProofInputProps()} />
-                          {paymentProofFile ? (
-                            <div className="flex items-center justify-center gap-2 text-green-700">
-                              <FileText className="w-5 h-5" />
-                              <span className="text-sm">{paymentProofFile.name}</span>
-                            </div>
-                          ) : (
-                            <div className="text-zinc-500">
-                              <Upload className="w-6 h-6 mx-auto mb-1" />
-                              <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
-                            </div>
-                          )}
-                        </div>
+                          <Upload className="w-4 h-4 mr-2" />
+                          {paymentProofFile ? 'Seleccionar otro archivo' : 'Cambiar archivo'}
+                        </Button>
                         {paymentProofFile && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => setPaymentProofFile(null)}
-                            disabled={updating}
-                          >
-                            Cambiar archivo
-                          </Button>
+                          <div className="flex items-center gap-2 text-sm text-zinc-600">
+                            <FileText className="w-4 h-4" />
+                            <span className="truncate">{paymentProofFile.name}</span>
+                          </div>
                         )}
                       </div>
-                    </>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Fecha Real de Pago (opcional)</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {paymentDate ? format(paymentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={paymentDate}
+                                onSelect={setPaymentDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Comprobante de Pago (PDF)</Label>
+                          <div 
+                            {...getProofRootProps()}
+                            className={`border-2 border-dashed rounded-lg p-4 text-center ${
+                              paymentProofFile ? 'border-green-500 bg-green-50' : 
+                              isProofDragActive ? 'border-red-500 bg-red-50' : 
+                              'border-zinc-300'
+                            }`}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <input {...getProofInputProps()} />
+                            {paymentProofFile ? (
+                              <div className="flex items-center justify-center gap-2 text-green-700">
+                                <FileText className="w-5 h-5" />
+                                <span className="text-sm">{paymentProofFile.name}</span>
+                              </div>
+                            ) : (
+                              <div className="text-zinc-500">
+                                <Upload className="w-6 h-6 mx-auto mb-1" />
+                                <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
+                              </div>
+                            )}
+                          </div>
+                          {paymentProofFile && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => setPaymentProofFile(null)}
+                              disabled={updating}
+                            >
+                              Cambiar archivo
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )
                   )}
 
                   {hasPendingChanges && (

@@ -21,6 +21,7 @@ class InvoiceResponse(BaseModel):
     folio_fiscal: str
     estatus: str
     fecha_pago_real: Optional[str] = None
+    comprobante_pago_subido: bool = False
     created_by: str
     created_by_nombre: Optional[str] = None
     revisada_por_tesoreria: bool = False
