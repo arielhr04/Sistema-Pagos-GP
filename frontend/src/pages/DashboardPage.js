@@ -119,6 +119,17 @@ const DashboardPage = () => {
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [updating, setUpdating] = useState(false);
 
+  const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
+  const selectedPaymentDateValue = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
+  const originalPaymentDateValue = selectedInvoice?.fecha_pago_real
+    ? selectedInvoice.fecha_pago_real.slice(0, 10)
+    : null;
+  const hasPendingChanges = Boolean(selectedInvoice) && (
+    Boolean(paymentProofFile) ||
+    targetStatus !== (selectedInvoice?.estatus || '') ||
+    (targetStatus === 'Pagada' && selectedPaymentDateValue !== originalPaymentDateValue)
+  );
+
   // Form state for Usuario Área
   const [formData, setFormData] = useState({
     nombre_proveedor: '',
@@ -266,7 +277,7 @@ const DashboardPage = () => {
         latestInvoice = statusResponse.data;
       }
 
-      if (!paymentProofFile && !shouldUpdateStatus) {
+      if (!hasPendingChanges || (!paymentProofFile && !shouldUpdateStatus)) {
         toast.error('No hay cambios por confirmar');
         return;
       }
@@ -838,14 +849,16 @@ const DashboardPage = () => {
                     </>
                   )}
 
-                  <Button
-                    type="button"
-                    onClick={handleConfirmChanges}
-                    className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
-                    disabled={updating}
-                  >
-                    {updating ? 'Guardando...' : 'Confirmar cambios'}
-                  </Button>
+                  {hasPendingChanges && (
+                    <Button
+                      type="button"
+                      onClick={handleConfirmChanges}
+                      className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                      disabled={updating}
+                    >
+                      {updating ? 'Guardando...' : 'Confirmar cambios'}
+                    </Button>
+                  )}
                 </>
               )}
 

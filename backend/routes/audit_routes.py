@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from typing import List
+from datetime import timezone, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,16 @@ from backend.models.user import User
 from backend.models.invoice import Invoice
 
 router = APIRouter(prefix="/api", tags=["Audit"])
+
+MEXICO_CITY_TZ = timezone(timedelta(hours=-6))
+
+
+def to_mexico_city_iso(dt):
+    if not dt:
+        return None
+
+    normalized = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return normalized.astimezone(MEXICO_CITY_TZ).isoformat()
 
 @router.get("/audit", response_model=List[MovementHistoryResponse])
 def get_audit_logs(
@@ -38,7 +49,7 @@ def get_audit_logs(
             usuario_nombre=users_map.get(m.usuario_id),
             estatus_anterior=m.estatus_anterior,
             estatus_nuevo=m.estatus_nuevo,
-            fecha_cambio=m.fecha_cambio.isoformat() if m.fecha_cambio else None,
+            fecha_cambio=to_mexico_city_iso(m.fecha_cambio),
         )
         for m in movements
     ]

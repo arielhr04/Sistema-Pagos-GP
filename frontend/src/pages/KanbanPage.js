@@ -274,6 +274,17 @@ const KanbanPage = () => {
   const [updating, setUpdating] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
+  const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
+  const selectedPaymentDateValue = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
+  const originalPaymentDateValue = selectedInvoice?.fecha_pago_real
+    ? selectedInvoice.fecha_pago_real.slice(0, 10)
+    : null;
+  const hasPendingChanges = Boolean(selectedInvoice) && (
+    Boolean(paymentProofFile) ||
+    targetStatus !== (selectedInvoice?.estatus || '') ||
+    (targetStatus === 'Pagada' && selectedPaymentDateValue !== originalPaymentDateValue)
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -497,7 +508,7 @@ const KanbanPage = () => {
         latestInvoice = statusResponse.data;
       }
 
-      if (!paymentProofFile && !shouldUpdateStatus) {
+      if (!hasPendingChanges || (!paymentProofFile && !shouldUpdateStatus)) {
         toast.error('No hay cambios por confirmar');
         return;
       }
@@ -754,14 +765,16 @@ const KanbanPage = () => {
                 </>
               )}
 
-              <Button
-                type="button"
-                onClick={handleConfirmChanges}
-                className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
-                disabled={updating}
-              >
-                {updating ? 'Guardando...' : 'Confirmar cambios'}
-              </Button>
+              {hasPendingChanges && (
+                <Button
+                  type="button"
+                  onClick={handleConfirmChanges}
+                  className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                  disabled={updating}
+                >
+                  {updating ? 'Guardando...' : 'Confirmar cambios'}
+                </Button>
+              )}
 
               <Button
                 onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
