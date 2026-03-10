@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -72,6 +72,8 @@ const InvoicesPage = () => {
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [invoiceReplacementPdfFile, setInvoiceReplacementPdfFile] = useState(null);
+  const invoicePdfInputRef = useRef(null);
 
   const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
   const selectedPaymentDateValue = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
@@ -135,6 +137,7 @@ const InvoicesPage = () => {
     setPendingStatus(invoice.estatus);
     setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
     setPaymentProofFile(null);
+    setInvoiceReplacementPdfFile(null);
     setDialogOpen(true);
 
     try {
@@ -254,6 +257,49 @@ const InvoicesPage = () => {
         || error.message
         || 'Error al confirmar cambios';
 
+      toast.error(errorMsg);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleInvoicePdfReplacementChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
+      return;
+    }
+    setInvoiceReplacementPdfFile(file);
+    toast.info('Archivo seleccionado. Presiona "Confirmar cambio de archivo" para guardar.');
+  };
+
+  const handleConfirmInvoicePdfChange = async () => {
+    if (!invoiceReplacementPdfFile || !selectedInvoice) return;
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('pdf_file', invoiceReplacementPdfFile);
+      const response = await axios.post(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/replace-pdf`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      setSelectedInvoice(response.data);
+      setInvoiceReplacementPdfFile(null);
+      fetchInvoices();
+      toast.success('PDF de factura actualizado correctamente');
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.message || 'Error al reemplazar el PDF';
       toast.error(errorMsg);
     } finally {
       setUpdating(false);
@@ -631,6 +677,45 @@ const InvoicesPage = () => {
                     </Button>
                   )}
                 </>
+              )}
+
+              {user?.rol === 'Usuario Área' && selectedInvoice.estatus !== 'Pagada' && (
+                <div className="space-y-2 border border-zinc-200 rounded-lg p-3">
+                  <Label>Cambiar PDF de Factura</Label>
+                  <input
+                    ref={invoicePdfInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleInvoicePdfReplacementChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => invoicePdfInputRef.current?.click()}
+                    disabled={updating}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {invoiceReplacementPdfFile ? 'Seleccionar otro PDF' : 'Cambiar archivo PDF'}
+                  </Button>
+                  {invoiceReplacementPdfFile && (
+                    <>
+                      <div className="flex items-center gap-2 text-sm text-zinc-600">
+                        <FileText className="w-4 h-4" />
+                        <span className="truncate">{invoiceReplacementPdfFile.name}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleConfirmInvoicePdfChange}
+                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                        disabled={updating}
+                      >
+                        {updating ? 'Guardando...' : 'Confirmar cambio de archivo'}
+                      </Button>
+                    </>
+                  )}
+                </div>
               )}
 
               <Button

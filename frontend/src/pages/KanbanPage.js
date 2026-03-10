@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -273,6 +273,8 @@ const KanbanPage = () => {
   const [paymentDate, setPaymentDate] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [invoiceReplacementPdfFile, setInvoiceReplacementPdfFile] = useState(null);
+  const invoicePdfInputRef = useRef(null);
 
   const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
   const selectedPaymentDateValue = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
@@ -409,6 +411,7 @@ const KanbanPage = () => {
     setSelectedInvoice(invoice);
     setPendingStatus(invoice.estatus);
     setPaymentProofFile(null);
+    setInvoiceReplacementPdfFile(null);
     setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
     setDialogOpen(true);
 
@@ -434,6 +437,48 @@ const KanbanPage = () => {
     setPendingStatus(newStatus);
     if (newStatus !== 'Pagada') {
       setPaymentProofFile(null);
+    }
+  };
+
+  const handleInvoicePdfReplacementChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
+      return;
+    }
+    setInvoiceReplacementPdfFile(file);
+    toast.info('Archivo seleccionado. Presiona "Confirmar cambio de archivo" para guardar.');
+  };
+
+  const handleConfirmInvoicePdfChange = async () => {
+    if (!invoiceReplacementPdfFile || !selectedInvoice) return;
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('pdf_file', invoiceReplacementPdfFile);
+      const response = await axios.post(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/replace-pdf`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      setSelectedInvoice(response.data);
+      setInvoiceReplacementPdfFile(null);
+      toast.success('PDF de factura actualizado correctamente');
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.message || 'Error al reemplazar el PDF';
+      toast.error(errorMsg);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -683,97 +728,140 @@ const KanbanPage = () => {
 
               <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
 
-              <div className="space-y-2">
-                <Label>Cambiar Estatus</Label>
-                <Select
-                  key={`status-${selectedInvoice.id}`}
-                  value={pendingStatus || selectedInvoice.estatus}
-                  onValueChange={handleStatusChange}
-                  disabled={updating}
-                >
-                  <SelectTrigger data-testid="status-change-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLUMNS.map((col) => (
-                      <SelectItem key={col.id} value={col.id}>
-                        {col.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {(pendingStatus === 'Pagada' || selectedInvoice.estatus === 'Pagada') && (
+              {(user?.rol === 'Administrador' || user?.rol === 'Tesorero') && (
                 <>
                   <div className="space-y-2">
-                    <Label>Fecha Real de Pago (opcional)</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {paymentDate ? format(paymentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={paymentDate}
-                          onSelect={setPaymentDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Label>Cambiar Estatus</Label>
+                    <Select
+                      key={`status-${selectedInvoice.id}`}
+                      value={pendingStatus || selectedInvoice.estatus}
+                      onValueChange={handleStatusChange}
+                      disabled={updating}
+                    >
+                      <SelectTrigger data-testid="status-change-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLUMNS.map((col) => (
+                          <SelectItem key={col.id} value={col.id}>
+                            {col.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Comprobante de Pago (PDF)</Label>
-                    <div 
-                      {...getProofRootProps()}
-                      className={`border-2 border-dashed rounded-lg p-4 text-center ${
-                        paymentProofFile ? 'border-green-500 bg-green-50' : 
-                        isProofDragActive ? 'border-red-500 bg-red-50' : 
-                        'border-zinc-300'
-                      }`}
-                      style={{ cursor: 'pointer' }}
+                  {(pendingStatus === 'Pagada' || selectedInvoice.estatus === 'Pagada') && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Fecha Real de Pago (opcional)</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-start">
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {paymentDate ? format(paymentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={paymentDate}
+                              onSelect={setPaymentDate}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Comprobante de Pago (PDF)</Label>
+                        <div 
+                          {...getProofRootProps()}
+                          className={`border-2 border-dashed rounded-lg p-4 text-center ${
+                            paymentProofFile ? 'border-green-500 bg-green-50' : 
+                            isProofDragActive ? 'border-red-500 bg-red-50' : 
+                            'border-zinc-300'
+                          }`}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <input {...getProofInputProps()} />
+                          {paymentProofFile ? (
+                            <div className="flex items-center justify-center gap-2 text-green-700">
+                              <FileText className="w-5 h-5" />
+                              <span className="text-sm">{paymentProofFile.name}</span>
+                            </div>
+                          ) : (
+                            <div className="text-zinc-500">
+                              <Upload className="w-6 h-6 mx-auto mb-1" />
+                              <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
+                            </div>
+                          )}
+                        </div>
+                        {paymentProofFile && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setPaymentProofFile(null)}
+                            disabled={updating}
+                          >
+                            Cambiar archivo
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {hasPendingChanges && (
+                    <Button
+                      type="button"
+                      onClick={handleConfirmChanges}
+                      className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                      disabled={updating}
                     >
-                      <input {...getProofInputProps()} />
-                      {paymentProofFile ? (
-                        <div className="flex items-center justify-center gap-2 text-green-700">
-                          <FileText className="w-5 h-5" />
-                          <span className="text-sm">{paymentProofFile.name}</span>
-                        </div>
-                      ) : (
-                        <div className="text-zinc-500">
-                          <Upload className="w-6 h-6 mx-auto mb-1" />
-                          <p className="text-sm">Arrastra aquí el comprobante o haz clic para seleccionar</p>
-                        </div>
-                      )}
-                    </div>
-                    {paymentProofFile && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => setPaymentProofFile(null)}
-                        disabled={updating}
-                      >
-                        Cambiar archivo
-                      </Button>
-                    )}
-                  </div>
+                      {updating ? 'Guardando...' : 'Confirmar cambios'}
+                    </Button>
+                  )}
                 </>
               )}
 
-              {hasPendingChanges && (
-                <Button
-                  type="button"
-                  onClick={handleConfirmChanges}
-                  className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
-                  disabled={updating}
-                >
-                  {updating ? 'Guardando...' : 'Confirmar cambios'}
-                </Button>
+              {user?.rol === 'Usuario Área' && selectedInvoice.estatus !== 'Pagada' && (
+                <div className="space-y-2 border border-zinc-200 rounded-lg p-3">
+                  <Label>Cambiar PDF de Factura</Label>
+                  <input
+                    ref={invoicePdfInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleInvoicePdfReplacementChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => invoicePdfInputRef.current?.click()}
+                    disabled={updating}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {invoiceReplacementPdfFile ? 'Seleccionar otro PDF' : 'Cambiar archivo PDF'}
+                  </Button>
+                  {invoiceReplacementPdfFile && (
+                    <>
+                      <div className="flex items-center gap-2 text-sm text-zinc-600">
+                        <FileText className="w-4 h-4" />
+                        <span className="truncate">{invoiceReplacementPdfFile.name}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleConfirmInvoicePdfChange}
+                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                        disabled={updating}
+                      >
+                        {updating ? 'Guardando...' : 'Confirmar cambio de archivo'}
+                      </Button>
+                    </>
+                  )}
+                </div>
               )}
 
               <Button

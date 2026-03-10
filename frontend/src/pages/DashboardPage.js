@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -117,7 +117,9 @@ const DashboardPage = () => {
   const [pendingStatus, setPendingStatus] = useState('');
   const [paymentDate, setPaymentDate] = useState(null);
   const [paymentProofFile, setPaymentProofFile] = useState(null);
+  const [invoiceReplacementPdfFile, setInvoiceReplacementPdfFile] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const invoicePdfInputRef = useRef(null);
 
   const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
   const selectedPaymentDateValue = paymentDate ? format(paymentDate, 'yyyy-MM-dd') : null;
@@ -176,6 +178,7 @@ const DashboardPage = () => {
     setPendingStatus(invoice.estatus);
     setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
     setPaymentProofFile(null);
+    setInvoiceReplacementPdfFile(null);
     setDialogOpen(true);
 
     try {
@@ -219,6 +222,61 @@ const DashboardPage = () => {
 
     setPaymentProofFile(file);
     toast.success('Archivo listo. Presiona "Confirmar cambios" para guardar.');
+  };
+
+  const handleInvoicePdfReplacementChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!isValidPdfFile(file)) {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      toast.error('El archivo no puede superar 10MB');
+      return;
+    }
+
+    setInvoiceReplacementPdfFile(file);
+    toast.success('Archivo listo. Presiona "Confirmar cambio de archivo" para guardar.');
+  };
+
+  const handleConfirmInvoicePdfChange = async () => {
+    if (!selectedInvoice || !invoiceReplacementPdfFile) return;
+
+    if (selectedInvoice.estatus === 'Pagada') {
+      toast.error('No se puede cambiar el PDF en facturas Pagadas');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('pdf_file', invoiceReplacementPdfFile);
+
+      const response = await axios.post(
+        `${API_URL}/api/invoices/${selectedInvoice.id}/replace-pdf`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      setSelectedInvoice(response.data);
+      setPendingStatus(response.data.estatus);
+      setInvoiceReplacementPdfFile(null);
+      fetchMyInvoices();
+      toast.success('PDF de factura actualizado correctamente');
+    } catch (error) {
+      console.error('Error replacing invoice PDF:', error);
+      toast.error(error.response?.data?.detail || 'Error al cambiar el PDF de factura');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleConfirmChanges = async () => {
@@ -764,6 +822,46 @@ const DashboardPage = () => {
               </div>
 
               <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
+
+              {isUsuarioArea && selectedInvoice.estatus !== 'Pagada' && (
+                <div className="space-y-2">
+                  <Label>Cambiar PDF de Factura</Label>
+                  <input
+                    ref={invoicePdfInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={handleInvoicePdfReplacementChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => invoicePdfInputRef.current?.click()}
+                    disabled={updating}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {invoiceReplacementPdfFile ? 'Seleccionar otro PDF' : 'Cambiar archivo PDF'}
+                  </Button>
+
+                  {invoiceReplacementPdfFile && (
+                    <>
+                      <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+                        <FileText className="h-4 w-4 text-green-600" />
+                        <span className="truncate">{invoiceReplacementPdfFile.name}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                        onClick={handleConfirmInvoicePdfChange}
+                        disabled={updating}
+                      >
+                        {updating ? 'Guardando...' : 'Confirmar cambio de archivo'}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
 
               {(user?.rol === 'Administrador' || user?.rol === 'Tesorero') && (
                 <>

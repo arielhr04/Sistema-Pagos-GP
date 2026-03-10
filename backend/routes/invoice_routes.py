@@ -277,6 +277,48 @@ def mark_treasury_reviewed(
 
     return get_invoice(invoice_id, current_user, db)
 
+
+@router.post("/invoices/{invoice_id}/replace-pdf", response_model=InvoiceResponse)
+def replace_invoice_pdf(
+    invoice_id: str,
+    pdf_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    if inv.estatus == InvoiceStatusEnum.PAGADA.value:
+        raise HTTPException(status_code=400, detail="No se puede cambiar el PDF en facturas Pagadas")
+
+    if current_user.rol == RoleEnum.USUARIO_AREA.value and inv.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="No autorizado para modificar esta factura")
+
+    if not pdf_file or not pdf_file.filename:
+        raise HTTPException(status_code=400, detail="Debe adjuntar un archivo PDF")
+
+    if not pdf_file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
+
+    content = pdf_file.file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="El archivo PDF está vacío")
+
+    if len(content) > MAX_PDF_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
+
+    try:
+        inv.pdf_data = PDFStorage.compress_pdf(content)
+        inv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al actualizar PDF: {str(e)}")
+
+    return get_invoice(invoice_id, current_user, db)
+
+
 @router.put("/invoices/{invoice_id}/status", response_model=InvoiceResponse)
 def update_invoice_status(
     invoice_id: str,
