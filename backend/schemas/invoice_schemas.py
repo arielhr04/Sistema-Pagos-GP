@@ -23,6 +23,8 @@ class InvoiceResponse(BaseModel):
     fecha_pago_real: Optional[str] = None
     created_by: str
     created_by_nombre: Optional[str] = None
+    revisada_por_tesoreria: bool = False
+    fecha_revision_tesoreria: Optional[str] = None
     created_at: str
     updated_at: str
 

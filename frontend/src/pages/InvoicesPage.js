@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import {
   Select,
   SelectContent,
@@ -117,11 +118,27 @@ const InvoicesPage = () => {
     setAreaFilter('');
   };
 
-  const handleInvoiceClick = (invoice) => {
+  const handleInvoiceClick = async (invoice) => {
     setSelectedInvoice(invoice);
     setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
     setPaymentProofFile(null);
     setDialogOpen(true);
+
+    try {
+      const response = user?.rol === 'Tesorero'
+        ? await axios.post(
+            `${API_URL}/api/invoices/${invoice.id}/mark-treasury-reviewed`,
+            {},
+            getAuthHeader()
+          )
+        : await axios.get(`${API_URL}/api/invoices/${invoice.id}`, getAuthHeader());
+
+      setSelectedInvoice(response.data);
+      setPaymentDate(response.data.fecha_pago_real ? new Date(response.data.fecha_pago_real) : null);
+    } catch (error) {
+      console.error('Error fetching invoice details:', error);
+      toast.error('Error al cargar detalle de factura');
+    }
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -465,6 +482,8 @@ const InvoicesPage = () => {
                   <p className="text-sm">{selectedInvoice.descripcion_factura}</p>
                 </div>
               </div>
+
+              <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
 
               {(user?.rol === 'Administrador' || user?.rol === 'Tesorero') && (
                 <>

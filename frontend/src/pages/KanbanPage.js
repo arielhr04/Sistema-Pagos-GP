@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
+import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import {
   Dialog,
   DialogContent,
@@ -392,11 +393,27 @@ const KanbanPage = () => {
 
   const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 
-  const openInvoiceDialog = (invoice) => {
+  const openInvoiceDialog = async (invoice) => {
     setSelectedInvoice(invoice);
     setPaymentProofFile(null);
-    setPaymentDate(null);
+    setPaymentDate(invoice.fecha_pago_real ? new Date(invoice.fecha_pago_real) : null);
     setDialogOpen(true);
+
+    try {
+      const response = user?.rol === 'Tesorero'
+        ? await axios.post(
+            `${API_URL}/api/invoices/${invoice.id}/mark-treasury-reviewed`,
+            {},
+            getAuthHeader()
+          )
+        : await axios.get(`${API_URL}/api/invoices/${invoice.id}`, getAuthHeader());
+
+      setSelectedInvoice(response.data);
+      setPaymentDate(response.data.fecha_pago_real ? new Date(response.data.fecha_pago_real) : null);
+    } catch (error) {
+      console.error('Error fetching invoice details:', error);
+      toast.error('Error al cargar detalle de factura');
+    }
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -642,6 +659,8 @@ const KanbanPage = () => {
                   <p className="font-medium text-sm">{selectedInvoice.fecha_vencimiento.slice(0, 10)}</p>
                 </div>
               </div>
+
+              <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
 
               <div className="space-y-2">
                 <Label>Cambiar Estatus</Label>

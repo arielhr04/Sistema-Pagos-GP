@@ -33,6 +33,9 @@ MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
 
 router = APIRouter(prefix="/api", tags=["Invoices"])
 
+TREASURY_REVIEW_PENDING = "Sin revisión de tesorería"
+TREASURY_REVIEW_DONE = "Revisada por tesorería"
+
 
 def sanitize_filename(text: str) -> str:
     """Sanitize filename by removing special characters"""
@@ -51,6 +54,72 @@ def log_movement(db: Session, factura_id: str, usuario_id: str, estatus_anterior
     )
     db.add(movement)
     db.commit()
+
+
+def to_iso_string(value) -> Optional[str]:
+    if value is None:
+        return None
+    return value if isinstance(value, str) else value.isoformat()
+
+
+def get_first_treasury_review(db: Session, invoice_id: str) -> Optional[MovementHistory]:
+    return (
+        db.query(MovementHistory)
+        .filter(
+            MovementHistory.factura_id == invoice_id,
+            MovementHistory.estatus_nuevo == TREASURY_REVIEW_DONE,
+        )
+        .order_by(MovementHistory.fecha_cambio.asc())
+        .first()
+    )
+
+
+def get_treasury_review_map(db: Session, invoice_ids: List[str]) -> dict:
+    if not invoice_ids:
+        return {}
+
+    movements = (
+        db.query(MovementHistory)
+        .filter(
+            MovementHistory.factura_id.in_(invoice_ids),
+            MovementHistory.estatus_nuevo == TREASURY_REVIEW_DONE,
+        )
+        .order_by(MovementHistory.fecha_cambio.asc())
+        .all()
+    )
+
+    review_map = {}
+    for movement in movements:
+        if movement.factura_id not in review_map:
+            review_map[movement.factura_id] = to_iso_string(movement.fecha_cambio)
+
+    return review_map
+
+
+def build_invoice_response(
+    inv: Invoice,
+    area_nombre: Optional[str] = None,
+    created_by_nombre: Optional[str] = None,
+    fecha_revision_tesoreria: Optional[str] = None,
+) -> InvoiceResponse:
+    return InvoiceResponse(
+        id=inv.id,
+        nombre_proveedor=inv.nombre_proveedor,
+        descripcion_factura=inv.descripcion_factura,
+        area_procedencia=inv.area_procedencia,
+        area_nombre=area_nombre,
+        monto=inv.monto,
+        fecha_vencimiento=inv.fecha_vencimiento,
+        folio_fiscal=inv.folio_fiscal,
+        estatus=inv.estatus,
+        fecha_pago_real=inv.fecha_pago_real,
+        created_by=inv.created_by,
+        created_by_nombre=created_by_nombre,
+        revisada_por_tesoreria=bool(fecha_revision_tesoreria),
+        fecha_revision_tesoreria=fecha_revision_tesoreria,
+        created_at=to_iso_string(inv.created_at),
+        updated_at=to_iso_string(inv.updated_at),
+    )
 
 
 @router.post("/invoices", response_model=InvoiceResponse)
@@ -121,21 +190,10 @@ def create_invoice(
 
     area_obj = db.query(Area).filter(Area.id == invoice_obj.area_procedencia).first()
 
-    return InvoiceResponse(
-        id=invoice_obj.id,
-        nombre_proveedor=invoice_obj.nombre_proveedor,
-        descripcion_factura=invoice_obj.descripcion_factura,
-        area_procedencia=invoice_obj.area_procedencia,
+    return build_invoice_response(
+        invoice_obj,
         area_nombre=area_obj.nombre if area_obj else None,
-        monto=invoice_obj.monto,
-        fecha_vencimiento=invoice_obj.fecha_vencimiento,
-        folio_fiscal=invoice_obj.folio_fiscal,
-        estatus=invoice_obj.estatus,
-        fecha_pago_real=invoice_obj.fecha_pago_real,
-        created_by=invoice_obj.created_by,
         created_by_nombre=current_user.nombre,
-        created_at=invoice_obj.created_at.isoformat() if invoice_obj.created_at else now.isoformat(),
-        updated_at=invoice_obj.updated_at.isoformat() if invoice_obj.updated_at else now.isoformat(),
     )
 
 @router.get("/invoices", response_model=List[InvoiceResponse])
@@ -167,22 +225,14 @@ def get_invoices(
     areas = {a.id: a.nombre for a in db.query(Area).limit(50).all()}
     users = {u.id: u.nombre for u in db.query(User).limit(100).all()}
 
+    review_dates = get_treasury_review_map(db, [inv.id for inv in invoices])
+
     return [
-        InvoiceResponse(
-            id=inv.id,
-            nombre_proveedor=inv.nombre_proveedor,
-            descripcion_factura=inv.descripcion_factura,
-            area_procedencia=inv.area_procedencia,
+        build_invoice_response(
+            inv,
             area_nombre=areas.get(inv.area_procedencia),
-            monto=inv.monto,
-            fecha_vencimiento=inv.fecha_vencimiento,
-            folio_fiscal=inv.folio_fiscal,
-            estatus=inv.estatus,
-            fecha_pago_real=inv.fecha_pago_real,
-            created_by=inv.created_by,
             created_by_nombre=users.get(inv.created_by),
-            created_at=inv.created_at.isoformat() if inv.created_at else None,
-            updated_at=inv.updated_at.isoformat() if inv.updated_at else None,
+            fecha_revision_tesoreria=review_dates.get(inv.id),
         )
         for inv in invoices
     ]
@@ -196,22 +246,36 @@ def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user),
     area_obj = db.query(Area).filter(Area.id == inv.area_procedencia).first()
     user_obj = db.query(User).filter(User.id == inv.created_by).first()
 
-    return InvoiceResponse(
-        id=inv.id,
-        nombre_proveedor=inv.nombre_proveedor,
-        descripcion_factura=inv.descripcion_factura,
-        area_procedencia=inv.area_procedencia,
+    treasury_review = get_first_treasury_review(db, invoice_id)
+
+    return build_invoice_response(
+        inv,
         area_nombre=area_obj.nombre if area_obj else None,
-        monto=inv.monto,
-        fecha_vencimiento=inv.fecha_vencimiento,
-        folio_fiscal=inv.folio_fiscal,
-        estatus=inv.estatus,
-        fecha_pago_real=inv.fecha_pago_real,
-        created_by=inv.created_by,
         created_by_nombre=user_obj.nombre if user_obj else None,
-        created_at=inv.created_at.isoformat() if inv.created_at else None,
-        updated_at=inv.updated_at.isoformat() if inv.updated_at else None,
+        fecha_revision_tesoreria=to_iso_string(treasury_review.fecha_cambio) if treasury_review else None,
     )
+
+@router.post("/invoices/{invoice_id}/mark-treasury-reviewed", response_model=InvoiceResponse)
+def mark_treasury_reviewed(
+    invoice_id: str,
+    current_user: User = Depends(require_roles(RoleEnum.TESORERO)),
+    db: Session = Depends(get_db),
+):
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    existing_review = get_first_treasury_review(db, invoice_id)
+    if not existing_review:
+        log_movement(
+            db,
+            invoice_id,
+            current_user.id,
+            TREASURY_REVIEW_PENDING,
+            TREASURY_REVIEW_DONE,
+        )
+
+    return get_invoice(invoice_id, current_user, db)
 
 @router.put("/invoices/{invoice_id}/status", response_model=InvoiceResponse)
 def update_invoice_status(

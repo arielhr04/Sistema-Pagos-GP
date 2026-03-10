@@ -22,6 +22,8 @@ const STATUS_STYLES = {
   'Programada': 'bg-blue-100 text-blue-700',
   'Pagada': 'bg-green-100 text-green-700',
   'Rechazada': 'bg-red-100 text-red-700',
+  'Sin revisión de tesorería': 'bg-zinc-100 text-zinc-700',
+  'Revisada por tesorería': 'bg-green-100 text-green-700',
   '': 'bg-zinc-50 text-zinc-400',
 };
 
@@ -63,7 +65,7 @@ const AuditPage = () => {
         <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
           Logs de Auditoría
         </h1>
-        <p className="text-zinc-500 mt-1">Historial de cambios de estatus en facturas</p>
+        <p className="text-zinc-500 mt-1">Historial de cambios de estatus y revisiones de tesorería</p>
       </div>
 
       <Card className="bg-white border border-zinc-200">
@@ -92,7 +94,7 @@ const AuditPage = () => {
                     <TableHead className="font-bold">Fecha</TableHead>
                     <TableHead className="font-bold">Folio Fiscal</TableHead>
                     <TableHead className="font-bold">Usuario</TableHead>
-                    <TableHead className="font-bold text-center">Cambio de Estatus</TableHead>
+                    <TableHead className="font-bold text-center">Evento</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
