@@ -91,11 +91,10 @@ def create_invoice(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al comprimir PDF: {str(e)}")
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
 
     try:
         invoice_obj = Invoice(
-            id=invoice_id,
             nombre_proveedor=nombre_proveedor,
             descripcion_factura=descripcion_factura,
             area_procedencia=area_procedencia,
@@ -115,28 +114,28 @@ def create_invoice(
         db.refresh(invoice_obj)
 
         # Log movement
-        log_movement(db, invoice_id, current_user.id, "", InvoiceStatusEnum.CAPTURADA.value)
+        log_movement(db, invoice_obj.id, current_user.id, "", InvoiceStatusEnum.CAPTURADA.value)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al crear factura: {str(e)}")
 
-    area_obj = db.query(Area).filter(Area.id == area_procedencia).first()
+    area_obj = db.query(Area).filter(Area.id == invoice_obj.area_procedencia).first()
 
     return InvoiceResponse(
-        id=invoice_id,
-        nombre_proveedor=nombre_proveedor,
-        descripcion_factura=descripcion_factura,
-        area_procedencia=area_procedencia,
+        id=invoice_obj.id,
+        nombre_proveedor=invoice_obj.nombre_proveedor,
+        descripcion_factura=invoice_obj.descripcion_factura,
+        area_procedencia=invoice_obj.area_procedencia,
         area_nombre=area_obj.nombre if area_obj else None,
-        monto=monto,
-        fecha_vencimiento=fecha_vencimiento,
-        folio_fiscal=folio_fiscal,
-        estatus=InvoiceStatusEnum.CAPTURADA.value,
-        fecha_pago_real=None,
-        created_by=current_user.id,
+        monto=invoice_obj.monto,
+        fecha_vencimiento=invoice_obj.fecha_vencimiento,
+        folio_fiscal=invoice_obj.folio_fiscal,
+        estatus=invoice_obj.estatus,
+        fecha_pago_real=invoice_obj.fecha_pago_real,
+        created_by=invoice_obj.created_by,
         created_by_nombre=current_user.nombre,
-        created_at=now,
-        updated_at=now,
+        created_at=invoice_obj.created_at.isoformat() if invoice_obj.created_at else now.isoformat(),
+        updated_at=invoice_obj.updated_at.isoformat() if invoice_obj.updated_at else now.isoformat(),
     )
 
 @router.get("/invoices", response_model=List[InvoiceResponse])
