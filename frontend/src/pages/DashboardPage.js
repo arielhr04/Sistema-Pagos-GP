@@ -1003,26 +1003,26 @@ const DashboardPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <Button
                     onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full h-24 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex-col items-center justify-center gap-1"
+                    className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
                   >
-                    <Download className="w-5 h-5" />
-                    <span className="text-center leading-tight">Descargar PDF de Factura</span>
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
                   </Button>
                   <Button
                     onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full h-24 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex-col items-center justify-center gap-1"
+                    className="w-full min-h-12 py-3 px-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
                   >
-                    <Download className="w-5 h-5" />
-                    <span className="text-center leading-tight">Descargar Comprobante de Pago</span>
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span className="text-center whitespace-normal break-words leading-tight">Descargar Comprobante de Pago</span>
                   </Button>
                 </div>
               ) : (
                 <Button
                   onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full h-24 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex-col items-center justify-center gap-1"
+                  className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
                 >
-                  <Download className="w-5 h-5" />
-                  <span className="text-center leading-tight">Descargar PDF de Factura</span>
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
                 </Button>
               )}
             </div>
@@ -1278,26 +1278,26 @@ const DashboardPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <Button
                     onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full h-24 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex-col items-center justify-center gap-1"
+                    className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
                   >
-                    <Download className="w-5 h-5" />
-                    <span className="text-center leading-tight">Descargar PDF de Factura</span>
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
                   </Button>
                   <Button
                     onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full h-24 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex-col items-center justify-center gap-1"
+                    className="w-full min-h-12 py-3 px-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
                   >
-                    <Download className="w-5 h-5" />
-                    <span className="text-center leading-tight">Descargar Comprobante de Pago</span>
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span className="text-center whitespace-normal break-words leading-tight">Descargar Comprobante de Pago</span>
                   </Button>
                 </div>
               ) : (
                 <Button
                   onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full h-24 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex-col items-center justify-center gap-1"
+                  className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
                 >
-                  <Download className="w-5 h-5" />
-                  <span className="text-center leading-tight">Descargar PDF de Factura</span>
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
                 </Button>
               )}
             </div>
