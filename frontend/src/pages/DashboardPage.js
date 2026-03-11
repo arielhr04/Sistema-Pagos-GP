@@ -10,6 +10,8 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
+import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
+import { parseDateOnly } from '../lib/date';
 import {
   Select,
   SelectContent,
@@ -40,8 +42,7 @@ import {
   Plus,
   Upload,
   Calendar as CalendarIcon,
-  ListFilter,
-  Download
+  ListFilter
 } from 'lucide-react';
 import {
   AreaChart,
@@ -69,14 +70,6 @@ const STATUS_STYLES = {
   'Programada': 'bg-blue-100 text-blue-700 border-blue-200',
   'Pagada': 'bg-green-100 text-green-700 border-green-200',
   'Rechazada': 'bg-red-100 text-red-700 border-red-200',
-};
-
-const parseDateOnly = (value) => {
-  if (!value) return null;
-  const datePart = String(value).slice(0, 10);
-  const [year, month, day] = datePart.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
 };
 
 const StatCard = ({ title, value, subtitle, icon: Icon, trend, trendUp, color = 'zinc' }) => {
@@ -352,7 +345,7 @@ const DashboardPage = () => {
 
       setSelectedInvoice(latestInvoice);
       setPendingStatus(latestInvoice.estatus);
-      setPaymentDate(latestInvoice.fecha_pago_real ? new Date(latestInvoice.fecha_pago_real) : null);
+      setPaymentDate(parseDateOnly(latestInvoice.fecha_pago_real));
       setPaymentProofFile(null);
       toast.success('Cambios guardados correctamente');
 
@@ -999,32 +992,12 @@ const DashboardPage = () => {
                 </>
               )}
 
-              {selectedInvoice.estatus === 'Pagada' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <Button
-                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
-                  </Button>
-                  <Button
-                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full min-h-12 py-3 px-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span className="text-center whitespace-normal break-words leading-tight">Descargar Comprobante de Pago</span>
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4 shrink-0" />
-                  <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
-                </Button>
-              )}
+              <InvoiceDownloadActions
+                invoiceId={selectedInvoice.id}
+                folioFiscal={selectedInvoice.folio_fiscal}
+                isPaid={selectedInvoice.estatus === 'Pagada'}
+                onDownload={downloadFile}
+              />
             </div>
           )}
         </DialogContent>
@@ -1274,32 +1247,12 @@ const DashboardPage = () => {
 
               <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
 
-              {selectedInvoice.estatus === 'Pagada' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <Button
-                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
-                  </Button>
-                  <Button
-                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full min-h-12 py-3 px-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span className="text-center whitespace-normal break-words leading-tight">Descargar Comprobante de Pago</span>
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4 shrink-0" />
-                  <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
-                </Button>
-              )}
+              <InvoiceDownloadActions
+                invoiceId={selectedInvoice.id}
+                folioFiscal={selectedInvoice.folio_fiscal}
+                isPaid={selectedInvoice.estatus === 'Pagada'}
+                onDownload={downloadFile}
+              />
             </div>
           )}
         </DialogContent>

@@ -26,6 +26,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
+import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
+import { parseDateOnly } from '../lib/date';
 import {
   Dialog,
   DialogContent,
@@ -52,8 +54,7 @@ import {
   Calendar as CalendarIcon,
   Upload,
   GripVertical,
-  X,
-  Download
+  X
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -85,14 +86,6 @@ const formatCurrency = (value) => {
     currency: 'MXN',
     minimumFractionDigits: 0,
   }).format(value);
-};
-
-const parseDateOnly = (value) => {
-  if (!value) return null;
-  const datePart = String(value).slice(0, 10);
-  const [year, month, day] = datePart.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
 };
 
 // Sortable Invoice Card
@@ -903,35 +896,14 @@ const KanbanPage = () => {
                 </div>
               )}
 
-              {selectedInvoice.estatus === 'Pagada' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <Button
-                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                    data-testid="download-invoice-pdf"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
-                  </Button>
-                  <Button
-                    onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-proof`, `PAGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                    className="w-full min-h-12 py-3 px-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                    data-testid="download-payment-proof"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span className="text-center whitespace-normal break-words leading-tight">Descargar Comprobante de Pago</span>
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => downloadFile(`/api/invoices/${selectedInvoice.id}/download-pdf`, `FACGP_${selectedInvoice.folio_fiscal}.pdf`)}
-                  className="w-full min-h-12 py-3 px-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                  data-testid="download-invoice-pdf"
-                >
-                  <Download className="w-4 h-4 shrink-0" />
-                  <span className="text-center whitespace-normal break-words leading-tight">Descargar PDF de Factura</span>
-                </Button>
-              )}
+              <InvoiceDownloadActions
+                invoiceId={selectedInvoice.id}
+                folioFiscal={selectedInvoice.folio_fiscal}
+                isPaid={selectedInvoice.estatus === 'Pagada'}
+                onDownload={downloadFile}
+                invoiceButtonTestId="download-invoice-pdf"
+                proofButtonTestId="download-payment-proof"
+              />
             </div>
           )}
         </DialogContent>
