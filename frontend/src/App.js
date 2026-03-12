@@ -1,14 +1,22 @@
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import InvoicesPage from "./pages/InvoicesPage";
-import KanbanPage from "./pages/KanbanPage";
-import UsersPage from "./pages/UsersPage";
-import AuditPage from "./pages/AuditPage";
-import AreasPage from "./pages/AreasPage";
-import Layout from "./components/Layout";
+
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const InvoicesPage = lazy(() => import("./pages/InvoicesPage"));
+const KanbanPage = lazy(() => import("./pages/KanbanPage"));
+const UsersPage = lazy(() => import("./pages/UsersPage"));
+const AuditPage = lazy(() => import("./pages/AuditPage"));
+const AreasPage = lazy(() => import("./pages/AreasPage"));
+const Layout = lazy(() => import("./components/Layout"));
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-zinc-100">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+  </div>
+);
 
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
@@ -78,7 +86,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <Suspense fallback={<PageLoader />}>
+          <AppRoutes />
+        </Suspense>
         <Toaster position="top-right" richColors />
       </AuthProvider>
     </BrowserRouter>

@@ -28,6 +28,7 @@ import { Badge } from '../components/ui/badge';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import { parseDateOnly } from '../lib/date';
+import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,7 @@ import {
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const CACHE_TTL_KANBAN_MS = 90 * 1000;
 
 const COLUMNS = [
   { id: 'Capturada', title: 'Capturada', color: 'border-t-zinc-500' },
@@ -303,17 +305,33 @@ const KanbanPage = () => {
   );
 
   const fetchInvoices = useCallback(async () => {
+    const cacheKey = buildCacheKey(
+      'kanban',
+      user?.id || user?.email || 'anon',
+      searchTerm || 'all'
+    );
+    const cachedInvoices = readApiCache(cacheKey, CACHE_TTL_KANBAN_MS);
+    const hasCachedInvoices = Array.isArray(cachedInvoices);
+
+    if (hasCachedInvoices) {
+      setInvoices(cachedInvoices);
+      setLoading(false);
+    }
+
     try {
       const params = searchTerm ? `?search=${searchTerm}` : '';
       const response = await axios.get(`${API_URL}/api/invoices${params}`, getAuthHeader());
       setInvoices(response.data);
+      writeApiCache(cacheKey, response.data);
     } catch (error) {
       console.error('Error fetching invoices:', error);
-      toast.error('Error al cargar facturas');
+      if (!hasCachedInvoices) {
+        toast.error('Error al cargar facturas');
+      }
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, getAuthHeader]);
+  }, [searchTerm, getAuthHeader, user?.id, user?.email]);
 
   useEffect(() => {
     const debounceTimer = setTimeout(() => {

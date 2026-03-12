@@ -12,6 +12,7 @@ import { Badge } from '../components/ui/badge';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import { parseDateOnly } from '../lib/date';
+import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
   Select,
   SelectContent,
@@ -61,6 +62,9 @@ import {
 } from 'recharts';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const CACHE_TTL_STATS_MS = 60 * 1000;
+const CACHE_TTL_AREAS_MS = 12 * 60 * 60 * 1000;
+const CACHE_TTL_MY_INVOICES_MS = 90 * 1000;
 
 const COLORS = ['#DC2626', '#09090B', '#71717A', '#16A34A', '#CA8A04'];
 
@@ -152,29 +156,51 @@ const DashboardPage = () => {
   const isUsuarioArea = user?.rol === 'Usuario Área';
 
   const fetchAreas = useCallback(async () => {
+    const areasCacheKey = buildCacheKey('areas');
+    const cachedAreas = readApiCache(areasCacheKey, CACHE_TTL_AREAS_MS);
+    const hasCachedAreas = Array.isArray(cachedAreas);
+
+    if (hasCachedAreas) {
+      setAreas(cachedAreas);
+      if (user?.area_id && cachedAreas.length > 0) {
+        setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
+      }
+    }
+
     try {
       const response = await axios.get(`${API_URL}/api/areas`, getAuthHeader());
-      console.log('✅ Áreas cargadas:', response.data);
       setAreas(response.data);
-      
-      // Pre-select user's area if available
+      writeApiCache(areasCacheKey, response.data);
+
       if (user?.area_id && response.data.length > 0) {
         setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
       }
     } catch (error) {
       console.error('❌ Error fetching areas:', error);
-      toast.error(`Error al cargar áreas: ${error.response?.data?.detail || error.message}`);
+      if (!hasCachedAreas) {
+        toast.error(`Error al cargar áreas: ${error.response?.data?.detail || error.message}`);
+      }
     }
   }, [getAuthHeader, user?.area_id]);
 
   const fetchMyInvoices = useCallback(async () => {
+    const cacheKey = buildCacheKey('dashboard-my-invoices', user?.id || user?.email || 'anon');
+    const cachedInvoices = readApiCache(cacheKey, CACHE_TTL_MY_INVOICES_MS);
+
+    if (Array.isArray(cachedInvoices)) {
+      setMyInvoices(cachedInvoices);
+      setLoading(false);
+    }
+
     try {
       const response = await axios.get(`${API_URL}/api/invoices`, getAuthHeader());
-      setMyInvoices(response.data.slice(0, 5)); // Last 5 invoices
+      const latestInvoices = response.data.slice(0, 5);
+      setMyInvoices(latestInvoices);
+      writeApiCache(cacheKey, latestInvoices);
     } catch (error) {
       console.error('Error fetching invoices:', error);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, user?.id, user?.email]);
 
   const handleInvoiceClick = async (invoice) => {
     setSelectedInvoice(invoice);
@@ -404,27 +430,40 @@ const DashboardPage = () => {
     }).format(value);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (canViewStats) {
-        try {
-          const response = await axios.get(`${API_URL}/api/dashboard/stats`, getAuthHeader());
-          setStats(response.data);
-        } catch (error) {
-          console.error('Error fetching stats:', error);
+  const fetchData = useCallback(async () => {
+    if (canViewStats) {
+      const statsCacheKey = buildCacheKey('dashboard-stats', user?.id || user?.email || 'anon');
+      const cachedStats = readApiCache(statsCacheKey, CACHE_TTL_STATS_MS);
+      const hasCachedStats = Boolean(cachedStats);
+
+      if (hasCachedStats) {
+        setStats(cachedStats);
+        setLoading(false);
+      }
+
+      try {
+        const response = await axios.get(`${API_URL}/api/dashboard/stats`, getAuthHeader());
+        setStats(response.data);
+        writeApiCache(statsCacheKey, response.data);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        if (!hasCachedStats) {
           toast.error('Error al cargar estadísticas');
         }
       }
+    }
 
-      if (isUsuarioArea) {
-        await fetchAreas();
-        await fetchMyInvoices();
-      }
+    if (isUsuarioArea) {
+      await fetchAreas();
+      await fetchMyInvoices();
+    }
 
-      setLoading(false);
-    };
+    setLoading(false);
+  }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices, user?.id, user?.email]);
+
+  useEffect(() => {
     fetchData();
-  }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices]);
+  }, [fetchData]);
 
   const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 

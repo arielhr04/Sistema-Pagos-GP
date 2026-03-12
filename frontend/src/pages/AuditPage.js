@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import { Badge } from '../components/ui/badge';
 import {
   Table,
@@ -15,6 +16,7 @@ import {
 import { History, ArrowRight, FileText, User } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const CACHE_TTL_AUDIT_MS = 60 * 1000;
 const CLIENT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 const STATUS_STYLES = {
@@ -29,21 +31,33 @@ const STATUS_STYLES = {
 };
 
 const AuditPage = () => {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLogs = useCallback(async () => {
+    const cacheKey = buildCacheKey('audit-logs', user?.id || user?.email || 'anon');
+    const cachedLogs = readApiCache(cacheKey, CACHE_TTL_AUDIT_MS);
+    const hasCachedLogs = Array.isArray(cachedLogs);
+
+    if (hasCachedLogs) {
+      setLogs(cachedLogs);
+      setLoading(false);
+    }
+
     try {
       const response = await axios.get(`${API_URL}/api/audit?limit=200`, getAuthHeader());
       setLogs(response.data);
+      writeApiCache(cacheKey, response.data);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
-      toast.error('Error al cargar logs de auditoría');
+      if (!hasCachedLogs) {
+        toast.error('Error al cargar logs de auditoría');
+      }
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, user?.id, user?.email]);
 
   useEffect(() => {
     fetchLogs();

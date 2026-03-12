@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import { parseDateOnly } from '../lib/date';
+import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
   Select,
   SelectContent,
@@ -48,6 +49,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const CACHE_TTL_INVOICES_MS = 90 * 1000;
+const CACHE_TTL_AREAS_MS = 12 * 60 * 60 * 1000;
 
 const STATUS_STYLES = {
   'Capturada': 'bg-zinc-100 text-zinc-700 border-zinc-200',
@@ -90,6 +93,21 @@ const InvoicesPage = () => {
   );
 
   const fetchInvoices = useCallback(async () => {
+    const cacheKey = buildCacheKey(
+      'invoices',
+      user?.id || user?.email || 'anon',
+      searchTerm || 'all',
+      statusFilter || 'all',
+      areaFilter || 'all'
+    );
+    const cachedInvoices = readApiCache(cacheKey, CACHE_TTL_INVOICES_MS);
+    const hasCachedInvoices = Array.isArray(cachedInvoices);
+
+    if (hasCachedInvoices) {
+      setInvoices(cachedInvoices);
+      setLoading(false);
+    }
+
     try {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
@@ -101,20 +119,35 @@ const InvoicesPage = () => {
         getAuthHeader()
       );
       setInvoices(response.data);
+      writeApiCache(cacheKey, response.data);
     } catch (error) {
       console.error('Error fetching invoices:', error);
-      toast.error('Error al cargar facturas');
+      if (!hasCachedInvoices) {
+        toast.error('Error al cargar facturas');
+      }
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, statusFilter, areaFilter, getAuthHeader]);
+  }, [searchTerm, statusFilter, areaFilter, getAuthHeader, user?.id, user?.email]);
 
   const fetchAreas = useCallback(async () => {
+    const areasCacheKey = buildCacheKey('areas');
+    const cachedAreas = readApiCache(areasCacheKey, CACHE_TTL_AREAS_MS);
+    const hasCachedAreas = Array.isArray(cachedAreas);
+
+    if (hasCachedAreas) {
+      setAreas(cachedAreas);
+    }
+
     try {
       const response = await axios.get(`${API_URL}/api/areas`, getAuthHeader());
       setAreas(response.data);
+      writeApiCache(areasCacheKey, response.data);
     } catch (error) {
       console.error('Error fetching areas:', error);
+      if (!hasCachedAreas) {
+        toast.error('Error al cargar áreas');
+      }
     }
   }, [getAuthHeader]);
 
