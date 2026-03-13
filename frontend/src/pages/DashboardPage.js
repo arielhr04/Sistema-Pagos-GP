@@ -65,6 +65,9 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const CACHE_TTL_STATS_MS = 60 * 1000;
 const CACHE_TTL_AREAS_MS = 12 * 60 * 60 * 1000;
 const CACHE_TTL_MY_INVOICES_MS = 90 * 1000;
+const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+
+const INVOICE_STATUS_OPTIONS = ['Capturada', 'En revisión', 'Programada', 'Pagada', 'Rechazada'];
 
 const COLORS = ['#DC2626', '#09090B', '#71717A', '#16A34A', '#CA8A04'];
 
@@ -110,6 +113,39 @@ const StatCard = ({ title, value, subtitle, icon: Icon, trend, trendUp, color = 
   );
 };
 
+const InvoiceInfoGrid = ({ invoice, formatCurrency, showStatus = false, statusStyles = {} }) => (
+  <div className="grid grid-cols-2 gap-4 p-4 bg-zinc-50 rounded-lg">
+    <div>
+      <p className="text-xs text-zinc-500">Folio Fiscal</p>
+      <p className="font-mono font-medium text-sm">{invoice.folio_fiscal}</p>
+    </div>
+    <div>
+      <p className="text-xs text-zinc-500">Monto</p>
+      <p className="font-mono font-bold">{formatCurrency(invoice.monto)}</p>
+    </div>
+    <div>
+      <p className="text-xs text-zinc-500">Proveedor</p>
+      <p className="font-medium text-sm">{invoice.nombre_proveedor}</p>
+    </div>
+    <div>
+      <p className="text-xs text-zinc-500">Vencimiento</p>
+      <p className="font-medium text-sm">{invoice.fecha_vencimiento.slice(0, 10)}</p>
+    </div>
+    <div className="col-span-2">
+      <p className="text-xs text-zinc-500">Descripción</p>
+      <p className="text-sm">{invoice.descripcion_factura}</p>
+    </div>
+    {showStatus && (
+      <div>
+        <p className="text-xs text-zinc-500">Estatus</p>
+        <Badge variant="outline" className={statusStyles[invoice.estatus]}>
+          {invoice.estatus}
+        </Badge>
+      </div>
+    )}
+  </div>
+);
+
 const DashboardPage = () => {
   const { user, token, getAuthHeader } = useAuth();
   const [stats, setStats] = useState(null);
@@ -149,11 +185,55 @@ const DashboardPage = () => {
     folio_fiscal: '',
   });
   const [pdfFile, setPdfFile] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isDraggingProof, setIsDraggingProof] = useState(false);
 
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
+
+  // Helpers compartidos de validación y configuración HTTP
+  const getMultipartAuthConfig = useCallback(() => ({
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'multipart/form-data',
+    },
+  }), [token]);
+
+  const isValidPdfFile = useCallback((file) => {
+    if (!file) return false;
+    const mime = file.type === 'application/pdf';
+    const extension = String(file.name || '').toLowerCase().endsWith('.pdf');
+    return mime || extension;
+  }, []);
+
+  const getPdfValidationError = useCallback((file) => {
+    if (!isValidPdfFile(file)) return 'Solo se permiten archivos PDF';
+    if (file.size > MAX_PDF_SIZE_BYTES) return 'El archivo no puede superar 10MB';
+    return null;
+  }, [isValidPdfFile]);
+
+  const handleDropzoneRejection = useCallback((errorCode) => {
+    if (errorCode === 'file-too-large') {
+      toast.error('El archivo no puede superar 10MB');
+      return;
+    }
+    if (errorCode === 'file-invalid-type') {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+    toast.error('Error al cargar el archivo');
+  }, []);
+
+  const fetchInvoiceDetail = useCallback(async (invoiceId) => {
+    if (!invoiceId) return null;
+    const response = user?.rol === 'Tesorero'
+      ? await axios.post(
+          `${API_URL}/api/invoices/${invoiceId}/mark-treasury-reviewed`,
+          {},
+          getAuthHeader()
+        )
+      : await axios.get(`${API_URL}/api/invoices/${invoiceId}`, getAuthHeader());
+
+    return response.data;
+  }, [getAuthHeader, user?.rol]);
 
   const fetchAreas = useCallback(async () => {
     const areasCacheKey = buildCacheKey('areas');
@@ -211,17 +291,12 @@ const DashboardPage = () => {
     setDialogOpen(true);
 
     try {
-      const response = user?.rol === 'Tesorero'
-        ? await axios.post(
-            `${API_URL}/api/invoices/${invoice.id}/mark-treasury-reviewed`,
-            {},
-            getAuthHeader()
-          )
-        : await axios.get(`${API_URL}/api/invoices/${invoice.id}`, getAuthHeader());
+      const invoiceDetail = await fetchInvoiceDetail(invoice.id);
+      if (!invoiceDetail) return;
 
-      setSelectedInvoice(response.data);
-      setPendingStatus(response.data.estatus);
-      setPaymentDate(parseDateOnly(response.data.fecha_pago_real));
+      setSelectedInvoice(invoiceDetail);
+      setPendingStatus(invoiceDetail.estatus);
+      setPaymentDate(parseDateOnly(invoiceDetail.fecha_pago_real));
     } catch (error) {
       console.error('Error fetching invoice details:', error);
       toast.error('Error al cargar detalle de factura');
@@ -229,7 +304,7 @@ const DashboardPage = () => {
   };
 
   const handleStatusChange = (newStatus) => {
-    setPaymentDate(parseDateOnly(latestInvoice.fecha_pago_real));
+    setPendingStatus(newStatus);
     if (newStatus !== 'Pagada') {
       setPaymentProofFile(null);
     }
@@ -238,14 +313,10 @@ const DashboardPage = () => {
   const handleProofFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
-    if (!isValidPdfFile(file)) {
-      toast.error('Solo se permiten archivos PDF');
-      return;
-    }
 
-    if (file.size > MAX_PDF_SIZE_BYTES) {
-      toast.error('El archivo no puede superar 10MB');
+    const validationError = getPdfValidationError(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -257,13 +328,9 @@ const DashboardPage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!isValidPdfFile(file)) {
-      toast.error('Solo se permiten archivos PDF');
-      return;
-    }
-
-    if (file.size > MAX_PDF_SIZE_BYTES) {
-      toast.error('El archivo no puede superar 10MB');
+    const validationError = getPdfValidationError(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -287,12 +354,7 @@ const DashboardPage = () => {
       const response = await axios.post(
         `${API_URL}/api/invoices/${selectedInvoice.id}/replace-pdf`,
         formData,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        }
+        getMultipartAuthConfig()
       );
 
       setSelectedInvoice(response.data);
@@ -334,12 +396,7 @@ const DashboardPage = () => {
         const proofResponse = await axios.post(
           `${API_URL}/api/invoices/${selectedInvoice.id}/payment-proof`,
           formData,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'multipart/form-data'
-            }
-          }
+          getMultipartAuthConfig()
         );
         latestInvoice = proofResponse.data;
       }
@@ -431,6 +488,7 @@ const DashboardPage = () => {
   };
 
   const fetchData = useCallback(async () => {
+    // Carga inicial con cache + revalidación
     if (canViewStats) {
       const statsCacheKey = buildCacheKey('dashboard-stats', user?.id || user?.email || 'anon');
       const cachedStats = readApiCache(statsCacheKey, CACHE_TTL_STATS_MS);
@@ -454,8 +512,7 @@ const DashboardPage = () => {
     }
 
     if (isUsuarioArea) {
-      await fetchAreas();
-      await fetchMyInvoices();
+      await Promise.all([fetchAreas(), fetchMyInvoices()]);
     }
 
     setLoading(false);
@@ -464,8 +521,6 @@ const DashboardPage = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 
   // Dropzone for invoice PDF
   const { getRootProps: getInvoicePdfRootProps, getInputProps: getInvoicePdfInputProps, isDragActive: isInvoicePdfDragActive } = useDropzone({
@@ -478,20 +533,14 @@ const DashboardPage = () => {
     onDrop: (acceptedFiles, rejectedFiles) => {
       if (rejectedFiles.length > 0) {
         const error = rejectedFiles[0].errors[0];
-        if (error.code === 'file-too-large') {
-          toast.error('El archivo no puede superar 10MB');
-        } else if (error.code === 'file-invalid-type') {
-          toast.error('Solo se permiten archivos PDF');
-        } else {
-          toast.error('Error al cargar el archivo');
-        }
+        handleDropzoneRejection(error.code);
         return;
       }
       if (acceptedFiles.length > 0) {
         setPdfFile(acceptedFiles[0]);
       }
     }
-  });
+  }, [handleDropzoneRejection]);
 
   // Dropzone for payment proof
   const { getRootProps: getProofRootProps, getInputProps: getProofInputProps, isDragActive: isProofDragActive } = useDropzone({
@@ -504,24 +553,22 @@ const DashboardPage = () => {
     onDrop: (acceptedFiles, rejectedFiles) => {
       if (rejectedFiles.length > 0) {
         const error = rejectedFiles[0].errors[0];
-        if (error.code === 'file-too-large') {
-          toast.error('El archivo no puede superar 10MB');
-        } else if (error.code === 'file-invalid-type') {
-          toast.error('Solo se permiten archivos PDF');
-        } else {
-          toast.error('Error al cargar el archivo');
-        }
+        handleDropzoneRejection(error.code);
         return;
       }
       if (acceptedFiles.length > 0) {
         const file = acceptedFiles[0];
-        setPaymentProofFile(file);
-        if (selectedInvoice) {
-          handleProofFileChange({ target: { files: [file] } });
+        const validationError = getPdfValidationError(file);
+        if (validationError) {
+          toast.error(validationError);
+          return;
         }
+
+        setPaymentProofFile(file);
+        toast.success('Archivo listo. Presiona "Confirmar cambios" para guardar.');
       }
     }
-  });
+  }, [getPdfValidationError, handleDropzoneRejection]);
 
   const resetForm = () => {
     setFormData({
@@ -566,10 +613,7 @@ const DashboardPage = () => {
       data.append('pdf_file', pdfFile);
 
       await axios.post(`${API_URL}/api/invoices`, data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
-        }
+        ...getMultipartAuthConfig()
       });
 
       toast.success('Factura registrada exitosamente');
@@ -840,28 +884,7 @@ const DashboardPage = () => {
 
           {selectedInvoice && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 p-4 bg-zinc-50 rounded-lg">
-                <div>
-                  <p className="text-xs text-zinc-500">Folio Fiscal</p>
-                  <p className="font-mono font-medium text-sm">{selectedInvoice.folio_fiscal}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Monto</p>
-                  <p className="font-mono font-bold">{formatCurrency(selectedInvoice.monto)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Proveedor</p>
-                  <p className="font-medium text-sm">{selectedInvoice.nombre_proveedor}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Vencimiento</p>
-                  <p className="font-medium text-sm">{selectedInvoice.fecha_vencimiento.slice(0, 10)}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-zinc-500">Descripción</p>
-                  <p className="text-sm">{selectedInvoice.descripcion_factura}</p>
-                </div>
-              </div>
+              <InvoiceInfoGrid invoice={selectedInvoice} formatCurrency={formatCurrency} />
 
               <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
 
@@ -919,11 +942,9 @@ const DashboardPage = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Capturada">Capturada</SelectItem>
-                        <SelectItem value="En revisión">En revisión</SelectItem>
-                        <SelectItem value="Programada">Programada</SelectItem>
-                        <SelectItem value="Pagada">Pagada</SelectItem>
-                        <SelectItem value="Rechazada">Rechazada</SelectItem>
+                        {INVOICE_STATUS_OPTIONS.map((status) => (
+                          <SelectItem key={status} value={status}>{status}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1255,34 +1276,12 @@ const DashboardPage = () => {
 
           {selectedInvoice && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 p-4 bg-zinc-50 rounded-lg">
-                <div>
-                  <p className="text-xs text-zinc-500">Folio Fiscal</p>
-                  <p className="font-mono font-medium text-sm">{selectedInvoice.folio_fiscal}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Monto</p>
-                  <p className="font-mono font-bold">{formatCurrency(selectedInvoice.monto)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Proveedor</p>
-                  <p className="font-medium text-sm">{selectedInvoice.nombre_proveedor}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Vencimiento</p>
-                  <p className="font-medium text-sm">{selectedInvoice.fecha_vencimiento.slice(0, 10)}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-zinc-500">Descripción</p>
-                  <p className="text-sm">{selectedInvoice.descripcion_factura}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Estatus</p>
-                  <Badge variant="outline" className={STATUS_STYLES[selectedInvoice.estatus]}>
-                    {selectedInvoice.estatus}
-                  </Badge>
-                </div>
-              </div>
+              <InvoiceInfoGrid
+                invoice={selectedInvoice}
+                formatCurrency={formatCurrency}
+                showStatus
+                statusStyles={STATUS_STYLES}
+              />
 
               <TreasuryReviewNotice reviewedAt={selectedInvoice.fecha_revision_tesoreria} />
 
