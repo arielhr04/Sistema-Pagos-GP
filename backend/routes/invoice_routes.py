@@ -19,6 +19,7 @@ from backend.schemas.invoice_schemas import (
 from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
 from backend.services.auth_service import require_roles, get_current_user
 from backend.services.pdf_storage import PDFStorage
+from backend.core.input_validation import sanitize_text, validate_iso_date, validate_uuid_value
 from backend.db.session import get_db
 from backend.models.invoice import Invoice
 from backend.models.area import Area
@@ -142,6 +143,20 @@ def create_invoice(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    try:
+        nombre_proveedor = sanitize_text(nombre_proveedor, "nombre_proveedor", max_length=255) or nombre_proveedor
+        descripcion_factura = sanitize_text(
+            descripcion_factura,
+            "descripcion_factura",
+            max_length=1024,
+            allow_multiline=True,
+        ) or descripcion_factura
+        area_procedencia = validate_uuid_value(area_procedencia, "area_procedencia", required=True) or area_procedencia
+        fecha_vencimiento = validate_iso_date(fecha_vencimiento, "fecha_vencimiento", required=True) or fecha_vencimiento
+        folio_fiscal = sanitize_text(folio_fiscal, "folio_fiscal", max_length=255) or folio_fiscal
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     # Validate PDF file exists and is not empty
     if not pdf_file or not pdf_file.filename:
         raise HTTPException(status_code=400, detail="Debe adjuntar un archivo PDF")
