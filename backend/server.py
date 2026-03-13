@@ -32,6 +32,25 @@ async def lifespan(app: FastAPI):
     # Crear tablas
     Base.metadata.create_all(bind=engine)
     logger.info("Tablas de base de datos creadas/verificadas")
+
+    # Migrar PDFs legacy de facturas a tabla dedicada de documentos
+    try:
+        from backend.db.session import SessionLocal
+        from backend.services.invoice_document_service import migrate_legacy_invoice_documents
+
+        db = SessionLocal()
+        try:
+            migration_stats = migrate_legacy_invoice_documents(db)
+            logger.info(
+                "Migración de documentos completada: facturas_escaneadas=%s, documentos_migrados=%s, legacy_limpiados=%s",
+                migration_stats.get("invoices_scanned", 0),
+                migration_stats.get("documents_migrated", 0),
+                migration_stats.get("legacy_fields_cleared", 0),
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error en migración de documentos legacy: {e}")
     
     # Auto-seed: crear usuarios iniciales si la BD está vacía
     try:

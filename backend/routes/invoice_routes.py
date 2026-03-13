@@ -19,6 +19,14 @@ from backend.schemas.invoice_schemas import (
 from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
 from backend.services.auth_service import require_roles, get_current_user
 from backend.services.pdf_storage import PDFStorage
+from backend.services.invoice_document_service import (
+    DOC_TYPE_INVOICE_PDF,
+    DOC_TYPE_PAYMENT_PROOF,
+    get_invoice_document,
+    get_invoice_document_presence_map,
+    has_invoice_document,
+    upsert_invoice_document,
+)
 from backend.core.input_validation import sanitize_text, validate_iso_date, validate_uuid_value
 from backend.db.session import get_db
 from backend.models.invoice import Invoice
@@ -109,7 +117,10 @@ def build_invoice_response(
     area_nombre: Optional[str] = None,
     created_by_nombre: Optional[str] = None,
     fecha_revision_tesoreria: Optional[str] = None,
+    comprobante_pago_subido: Optional[bool] = None,
 ) -> InvoiceResponse:
+    proof_uploaded = comprobante_pago_subido if comprobante_pago_subido is not None else bool(inv.comprobante_pago_data)
+
     return InvoiceResponse(
         id=inv.id,
         nombre_proveedor=inv.nombre_proveedor,
@@ -121,7 +132,7 @@ def build_invoice_response(
         folio_fiscal=inv.folio_fiscal,
         estatus=inv.estatus,
         fecha_pago_real=inv.fecha_pago_real,
-        comprobante_pago_subido=bool(inv.comprobante_pago_data),
+        comprobante_pago_subido=proof_uploaded,
         created_by=inv.created_by,
         created_by_nombre=created_by_nombre,
         revisada_por_tesoreria=bool(fecha_revision_tesoreria),
@@ -194,14 +205,14 @@ def create_invoice(
             fecha_vencimiento=fecha_vencimiento,
             folio_fiscal=folio_fiscal,
             estatus=InvoiceStatusEnum.CAPTURADA.value,
-            pdf_data=compressed_pdf,
-            comprobante_pago_data=None,
             fecha_pago_real=None,
             created_by=current_user.id,
             created_at=now,
             updated_at=now,
         )
         db.add(invoice_obj)
+        db.flush()
+        upsert_invoice_document(db, invoice_obj.id, DOC_TYPE_INVOICE_PDF, compressed_pdf)
         db.commit()
         db.refresh(invoice_obj)
 
@@ -249,6 +260,11 @@ def get_invoices(
     users = {u.id: u.nombre for u in db.query(User).limit(100).all()}
 
     review_dates = get_treasury_review_map(db, [inv.id for inv in invoices])
+    proof_invoice_ids = get_invoice_document_presence_map(
+        db,
+        [inv.id for inv in invoices],
+        DOC_TYPE_PAYMENT_PROOF,
+    )
 
     return [
         build_invoice_response(
@@ -256,6 +272,7 @@ def get_invoices(
             area_nombre=areas.get(inv.area_procedencia),
             created_by_nombre=users.get(inv.created_by),
             fecha_revision_tesoreria=review_dates.get(inv.id),
+            comprobante_pago_subido=inv.id in proof_invoice_ids,
         )
         for inv in invoices
     ]
@@ -270,12 +287,14 @@ def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user),
     user_obj = db.query(User).filter(User.id == inv.created_by).first()
 
     treasury_review = get_first_treasury_review(db, invoice_id)
+    proof_uploaded = has_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF) or bool(inv.comprobante_pago_data)
 
     return build_invoice_response(
         inv,
         area_nombre=area_obj.nombre if area_obj else None,
         created_by_nombre=user_obj.nombre if user_obj else None,
         fecha_revision_tesoreria=to_iso_string(treasury_review.fecha_cambio) if treasury_review else None,
+        comprobante_pago_subido=proof_uploaded,
     )
 
 @router.post("/invoices/{invoice_id}/mark-treasury-reviewed", response_model=InvoiceResponse)
@@ -332,7 +351,9 @@ def replace_invoice_pdf(
         raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
 
     try:
-        inv.pdf_data = PDFStorage.compress_pdf(content)
+        compressed_pdf = PDFStorage.compress_pdf(content)
+        upsert_invoice_document(db, invoice_id, DOC_TYPE_INVOICE_PDF, compressed_pdf)
+        inv.pdf_data = None
         inv.updated_at = datetime.now(timezone.utc)
         db.commit()
     except Exception as e:
@@ -357,7 +378,8 @@ def update_invoice_status(
     new_status = status_update.nuevo_estatus.value
 
     if new_status == InvoiceStatusEnum.PAGADA.value:
-        if not inv.comprobante_pago_data:
+        has_payment_proof = has_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF) or bool(inv.comprobante_pago_data)
+        if not has_payment_proof:
             raise HTTPException(
                 status_code=400,
                 detail="Error: Se necesita subir un comprobante de pago",
@@ -405,7 +427,8 @@ def upload_payment_proof(
     old_status = inv.estatus
     
     try:
-        inv.comprobante_pago_data = compressed_proof
+        upsert_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF, compressed_proof)
+        inv.comprobante_pago_data = None
         inv.estatus = InvoiceStatusEnum.PAGADA.value
         inv.updated_at = datetime.now(timezone.utc).isoformat()
         if not inv.fecha_pago_real:
@@ -438,12 +461,26 @@ def download_invoice_pdf(
 ):
     """Download compressed PDF of invoice directly from database"""
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
-    if not inv or not inv.pdf_data:
+    if not inv:
+        raise HTTPException(status_code=404, detail="PDF de factura no encontrado")
+
+    doc = get_invoice_document(db, invoice_id, DOC_TYPE_INVOICE_PDF)
+
+    if not doc and inv.pdf_data:
+        try:
+            upsert_invoice_document(db, invoice_id, DOC_TYPE_INVOICE_PDF, inv.pdf_data)
+            inv.pdf_data = None
+            db.commit()
+            doc = get_invoice_document(db, invoice_id, DOC_TYPE_INVOICE_PDF)
+        except Exception:
+            db.rollback()
+
+    if not doc:
         raise HTTPException(status_code=404, detail="PDF de factura no encontrado")
     
     try:
         # Decompress PDF from database
-        pdf_content = PDFStorage.decompress_pdf(inv.pdf_data)
+        pdf_content = PDFStorage.decompress_pdf(doc.file_data)
         
         # Generate standardized filename
         sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)
@@ -470,12 +507,26 @@ def download_payment_proof(
 ):
     """Download compressed payment proof directly from database"""
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
-    if not inv or not inv.comprobante_pago_data:
+    if not inv:
+        raise HTTPException(status_code=404, detail="Comprobante de pago no encontrado")
+
+    doc = get_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF)
+
+    if not doc and inv.comprobante_pago_data:
+        try:
+            upsert_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF, inv.comprobante_pago_data)
+            inv.comprobante_pago_data = None
+            db.commit()
+            doc = get_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF)
+        except Exception:
+            db.rollback()
+
+    if not doc:
         raise HTTPException(status_code=404, detail="Comprobante de pago no encontrado")
     
     try:
         # Decompress proof from database
-        proof_content = PDFStorage.decompress_pdf(inv.comprobante_pago_data)
+        proof_content = PDFStorage.decompress_pdf(doc.file_data)
         
         # Generate standardized filename
         sanitized_proveedor = sanitize_filename(inv.nombre_proveedor)

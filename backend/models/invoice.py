@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, LargeBinary
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 
 from backend.db.base import Base
 
@@ -21,8 +21,8 @@ class Invoice(Base):
     fecha_vencimiento = Column(String(50), nullable=False)
     folio_fiscal = Column(String(255), unique=True, nullable=False)
     estatus = Column(String(50), nullable=False)
-    pdf_data = Column(LargeBinary, nullable=True)
-    comprobante_pago_data = Column(LargeBinary, nullable=True)
+    pdf_data = deferred(Column(LargeBinary, nullable=True))
+    comprobante_pago_data = deferred(Column(LargeBinary, nullable=True))
     fecha_pago_real = Column(String(50))
     created_by = Column(String(36), ForeignKey("tesoreriapp_gp_users.id"), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -31,3 +31,4 @@ class Invoice(Base):
     creator = relationship("User", back_populates="invoices")
     area = relationship("Area", back_populates="invoices")
     movements = relationship("MovementHistory", back_populates="invoice")
+    documents = relationship("InvoiceDocument", back_populates="invoice", cascade="all, delete-orphan")
