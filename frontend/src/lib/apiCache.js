@@ -57,3 +57,24 @@ export const writeApiCache = (key, data) => {
     return;
   }
 };
+
+export const clearApiCache = () => {
+  const storage = resolveStorage();
+  if (!storage) return;
+
+  try {
+    const prefix = `${CACHE_PREFIX}:`;
+    const keysToRemove = [];
+
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key && key.startsWith(prefix)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => storage.removeItem(key));
+  } catch {
+    return;
+  }
+};

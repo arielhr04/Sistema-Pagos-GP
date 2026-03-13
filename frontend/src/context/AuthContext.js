@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { clearApiCache } from '../lib/apiCache';
 
 // Si REACT_APP_BACKEND_URL está vacío o no está definido, usa URL relativa
 // Esto permite funcionar en local (http://localhost:3000 → http://localhost:8000)
@@ -32,6 +33,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           console.error('Auth error:', error);
           localStorage.removeItem('token');
+          clearApiCache();
           setToken(null);
           setUser(null);
         }
@@ -55,6 +57,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    clearApiCache();
     setToken(null);
     setUser(null);
   };
