@@ -14,12 +14,14 @@ from backend.models.invoice import Invoice
 
 router = APIRouter(prefix="/api", tags=["Audit"])
 
-def to_utc_iso(dt):
+
+def _to_utc_iso(dt):
+    """Convertir datetime a ISO 8601 UTC."""
     if not dt:
         return None
-
     normalized = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     return normalized.astimezone(timezone.utc).isoformat()
+
 
 @router.get("/audit", response_model=List[MovementHistoryResponse])
 def get_audit_logs(
@@ -27,6 +29,7 @@ def get_audit_logs(
     current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
     db: Session = Depends(get_db),
 ):
+    """Historial de movimientos — solo carga usuarios/facturas referenciados."""
     movements = (
         db.query(MovementHistory)
         .order_by(MovementHistory.fecha_cambio.desc())
@@ -34,8 +37,18 @@ def get_audit_logs(
         .all()
     )
 
-    users_map = {u.id: u.nombre for u in db.query(User).limit(100).all()}
-    invoices_map = {i.id: i.folio_fiscal for i in db.query(Invoice).limit(500).all()}
+    # Solo buscar los IDs que aparecen en el resultado (evita cargar toda la tabla)
+    user_ids = {m.usuario_id for m in movements if m.usuario_id}
+    invoice_ids = {m.factura_id for m in movements if m.factura_id}
+
+    users_map = (
+        {u.id: u.nombre for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        if user_ids else {}
+    )
+    invoices_map = (
+        {i.id: i.folio_fiscal for i in db.query(Invoice).filter(Invoice.id.in_(invoice_ids)).all()}
+        if invoice_ids else {}
+    )
 
     return [
         MovementHistoryResponse(
@@ -46,7 +59,7 @@ def get_audit_logs(
             usuario_nombre=users_map.get(m.usuario_id),
             estatus_anterior=m.estatus_anterior,
             estatus_nuevo=m.estatus_nuevo,
-            fecha_cambio=to_utc_iso(m.fecha_cambio),
+            fecha_cambio=_to_utc_iso(m.fecha_cambio),
         )
         for m in movements
     ]

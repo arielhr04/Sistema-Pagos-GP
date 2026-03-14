@@ -39,7 +39,8 @@ import {
   Trash2,
   UserCheck,
   UserX,
-  Download
+  Download,
+  KeyRound
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -60,6 +61,10 @@ const UsersPage = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -209,6 +214,40 @@ const UsersPage = () => {
       rol: 'Usuario Área',
       area_id: '',
     });
+  };
+
+  const openPasswordDialog = (user) => {
+    setPasswordUser(user);
+    setNewPassword('');
+    setPasswordDialogOpen(true);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!passwordUser) return;
+    setChangingPassword(true);
+    try {
+      await axios.put(
+        `${API_URL}/api/users/${passwordUser.id}/password`,
+        { new_password: newPassword },
+        getAuthHeader()
+      );
+      toast.success(`Contraseña de ${passwordUser.nombre} actualizada`);
+      setPasswordDialogOpen(false);
+      setPasswordUser(null);
+      setNewPassword('');
+    } catch (error) {
+      console.error('Error changing password:', error);
+      const detail = error.response?.data?.detail;
+      // Pydantic validation errors come as array
+      if (Array.isArray(detail)) {
+        toast.error(detail.map((d) => d.msg).join(', '));
+      } else {
+        toast.error(detail || 'Error al cambiar contraseña');
+      }
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const openCreateDialog = () => {
@@ -437,6 +476,15 @@ const UsersPage = () => {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => openPasswordDialog(user)}
+                            title="Cambiar contraseña"
+                            data-testid={`password-user-${user.id}`}
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDelete(user.id)}
                             className="text-red-600 hover:text-red-700"
                             data-testid={`delete-user-${user.id}`}
@@ -453,6 +501,59 @@ const UsersPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Change Password Dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold font-[Chivo]">
+              Cambiar Contraseña
+            </DialogTitle>
+            <DialogDescription>
+              {passwordUser
+                ? `Nueva contraseña para ${passwordUser.nombre} (${passwordUser.email})`
+                : 'Ingrese la nueva contraseña'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="new_password">Nueva Contraseña *</Label>
+              <Input
+                id="new_password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={8}
+                data-testid="new-password-input"
+              />
+              <p className="text-xs text-zinc-500">
+                Mínimo 8 caracteres, 1 mayúscula, 1 minúscula y 1 número
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPasswordDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={changingPassword || newPassword.length < 8}
+                data-testid="change-password-submit"
+              >
+                {changingPassword ? 'Guardando...' : 'Cambiar Contraseña'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

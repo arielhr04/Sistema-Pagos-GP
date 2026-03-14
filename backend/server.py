@@ -1,18 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 from pathlib import Path
 import os
+import uuid
 import logging
 from fastapi.staticfiles import StaticFiles
 
-# Load environment variables
+# Cargar variables de entorno
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-# import configuration and database at startup
+# Importar configuración y BD al inicio
+from backend.core.config import IS_PRODUCTION
 from backend.db.session import engine
 from backend.db.base import Base
 
@@ -23,55 +26,56 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Lifespan event handler (reemplaza @app.on_event)
+
+# ---------------------------------------------------------------------------
+# Lifespan: startup / shutdown
+# ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logger.info("Iniciando aplicación...")
-    
+
     # Crear tablas
     Base.metadata.create_all(bind=engine)
     logger.info("Tablas de base de datos creadas/verificadas")
 
-    # Migrar PDFs legacy de facturas a tabla dedicada de documentos
+    # Migrar PDFs legacy a tabla dedicada
     try:
         from backend.db.session import SessionLocal
         from backend.services.invoice_document_service import migrate_legacy_invoice_documents
 
         db = SessionLocal()
         try:
-            migration_stats = migrate_legacy_invoice_documents(db)
+            stats = migrate_legacy_invoice_documents(db)
             logger.info(
-                "Migración de documentos completada: facturas_escaneadas=%s, documentos_migrados=%s, legacy_limpiados=%s",
-                migration_stats.get("invoices_scanned", 0),
-                migration_stats.get("documents_migrated", 0),
-                migration_stats.get("legacy_fields_cleared", 0),
+                "Migración de documentos: escaneadas=%s, migrados=%s, legacy_limpiados=%s",
+                stats.get("invoices_scanned", 0),
+                stats.get("documents_migrated", 0),
+                stats.get("legacy_fields_cleared", 0),
             )
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Error en migración de documentos legacy: {e}")
-    
-    # Auto-seed: crear usuarios iniciales si la BD está vacía
+        logger.error("Error en migración de documentos legacy: %s", e)
+
+    # Auto-seed: crear datos iniciales si la BD está vacía
     try:
         from backend.db.session import SessionLocal
         from backend.models.user import User
-        
+
         db = SessionLocal()
         user_count = db.query(User).count()
-        
+
         if user_count == 0:
-            logger.info("Base de datos vacía. Ejecutando seed automático...")
-            
+            logger.info("Base de datos vacía — ejecutando seed automático...")
+
             from uuid import uuid4
             from datetime import datetime
             from backend.models.area import Area
             from backend.schemas.enums import RoleEnum
             from backend.services.auth_service import hash_password
-            
+
             now = datetime.utcnow()
-            
-            # Crear áreas
+
             areas = [
                 Area(id=str(uuid4()), nombre="Finanzas", descripcion="Departamento de Finanzas"),
                 Area(id=str(uuid4()), nombre="Operaciones", descripcion="Departamento de Operaciones"),
@@ -80,78 +84,84 @@ async def lifespan(app: FastAPI):
             ]
             db.add_all(areas)
             db.flush()
-            
-            # Crear usuarios de ejemplo
+
             users = [
-                User(
-                    id=str(uuid4()),
-                    email="admin@sistema.com",
-                    password=hash_password("admin123"),
-                    nombre="Administrador Principal",
-                    rol=RoleEnum.ADMINISTRADOR.value,
-                    area_id=None,
-                    activo=True,
-                    created_at=now,
-                    updated_at=now,
-                ),
-                User(
-                    id=str(uuid4()),
-                    email="tesorero@sistema.com",
-                    password=hash_password("tesorero123"),
-                    nombre="Tesorero Principal",
-                    rol=RoleEnum.TESORERO.value,
-                    area_id=areas[0].id,
-                    activo=True,
-                    created_at=now,
-                    updated_at=now,
-                ),
-                User(
-                    id=str(uuid4()),
-                    email="usuario@sistema.com",
-                    password=hash_password("usuario123"),
-                    nombre="Usuario de Área",
-                    rol=RoleEnum.USUARIO_AREA.value,
-                    area_id=areas[1].id,
-                    activo=True,
-                    created_at=now,
-                    updated_at=now,
-                ),
+                User(id=str(uuid4()), email="admin@sistema.com", password=hash_password("admin123"),
+                     nombre="Administrador Principal", rol=RoleEnum.ADMINISTRADOR.value,
+                     area_id=None, activo=True, created_at=now, updated_at=now),
+                User(id=str(uuid4()), email="tesorero@sistema.com", password=hash_password("tesorero123"),
+                     nombre="Tesorero Principal", rol=RoleEnum.TESORERO.value,
+                     area_id=areas[0].id, activo=True, created_at=now, updated_at=now),
+                User(id=str(uuid4()), email="usuario@sistema.com", password=hash_password("usuario123"),
+                     nombre="Usuario de Área", rol=RoleEnum.USUARIO_AREA.value,
+                     area_id=areas[1].id, activo=True, created_at=now, updated_at=now),
             ]
             db.add_all(users)
             db.commit()
-            
-            logger.info("Seed completado. Usuarios creados:")
-            logger.info("   admin@sistema.com : admin123")
-            logger.info("   tesorero@sistema.com : tesorero123")
-            logger.info("   usuario@sistema.com : usuario123")
+            logger.info("Seed completado: %s usuarios creados", len(users))
         else:
-            logger.info(f"Base de datos con {user_count} usuarios existentes")
-        
+            logger.info("Base de datos con %s usuarios existentes", user_count)
+
         db.close()
     except Exception as e:
-        logger.error(f"Error en seed automático: {e}")
-    
+        logger.error("Error en seed automático: %s", e)
+
     yield
-    # Shutdown
     logger.info("Cerrando aplicación...")
 
+
+# ---------------------------------------------------------------------------
+# Crear app FastAPI
+# ---------------------------------------------------------------------------
 app = FastAPI(title="Sistema de Gestión de Facturas", lifespan=lifespan)
 
-# CORS
+# CORS — orígenes configurados en .env; vacío = solo mismo origen
+cors_origins_raw = os.environ.get("CORS_ORIGINS", "")
+cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()] if cors_origins_raw else []
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=cors_origins if cors_origins else ["*"] if not IS_PRODUCTION else [],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.add_middleware(
-    GZipMiddleware,
-    minimum_size=500,
-)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# Import routers AFTER app creation
+
+# ---------------------------------------------------------------------------
+# Security headers — protección contra clickjacking, MIME sniffing, etc.
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    if IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Error handler global — captura excepciones no manejadas
+# ---------------------------------------------------------------------------
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Captura errores inesperados, genera ID rastreable y logea el detalle."""
+    error_id = f"ERR-{uuid.uuid4().hex[:8]}"
+    logger.exception("Error no manejado [%s] %s %s: %s",
+                     error_id, request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno del servidor. Referencia: {error_id}"},
+    )
+
+# ---------------------------------------------------------------------------
+# Registrar routers
+# ---------------------------------------------------------------------------
 from backend.routes.auth_routes import router as auth_router
 from backend.routes.user_routes import router as user_router
 from backend.routes.area_routes import router as area_router
@@ -170,105 +180,19 @@ app.include_router(audit_router)
 app.include_router(system_router)
 app.include_router(seed_router)
 
-# Endpoint de debug (solo en development)
-@app.get("/api/debug/users")
-def debug_users():
-    """Endpoint de debug para ver los usuarios creados. SOLO EN DEVELOPMENT."""
-    if os.environ.get("ENV") == "production":
-        return {"error": "No disponible en producción"}
-    
-    from backend.db.session import SessionLocal
-    from backend.models.user import User
-    
-    db = SessionLocal()
-    users = db.query(User).all()
-    db.close()
-    
-    return {
-        "total_usuarios": len(users),
-        "usuarios": [
-            {
-                "id": u.id,
-                "email": u.email,
-                "nombre": u.nombre,
-                "rol": u.rol,
-                "activo": u.activo,
-                "password_hash_length": len(u.password) if u.password else 0,
-                "password_starts_with": u.password[:20] if u.password else None,
-            }
-            for u in users
-        ],
-        "credenciales_de_prueba": {
-            "admin": "admin@sistema.com:admin123",
-            "tesorero": "tesorero@sistema.com:tesorero123",
-            "usuario": "usuario@sistema.com:usuario123",
-        }
-    }
-
-@app.post("/api/debug/verify-password/{email}/{password}")
-def debug_verify_password(email: str, password: str):
-    """Endpoint de debug para verificar si una contraseña es correcta."""
-    if os.environ.get("ENV") == "production":
-        return {"error": "No disponible en producción"}
-    
-    from backend.db.session import SessionLocal
-    from backend.models.user import User
-    from backend.services.auth_service import verify_password
-    
-    db = SessionLocal()
-    user = db.query(User).filter(User.email == email).first()
-    db.close()
-    
-    if not user:
-        return {
-            "error": f"Usuario {email} no encontrado",
-            "email": email,
-            "password_verificada": False
-        }
-    
-    is_valid = verify_password(password, user.password)
-    
-    return {
-        "email": email,
-        "usuario_existe": True,
-        "usuario_activo": user.activo,
-        "password_ingresada": password,
-        "password_hash_almacenado": user.password[:30] + "...",
-        "password_verificada": is_valid,
-        "mensaje": "Contraseña correcta" if is_valid else "❌ Contraseña incorrecta",
-        "usuario_nombre": user.nombre,
-        "usuario_rol": user.rol
-    }
-
-@app.get("/api/debug/routes")
-def debug_routes():
-    """Debug: Listar todas las rutas registradas."""
-    from fastapi.routing import APIRoute
-    routes = []
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            routes.append({
-                "path": route.path,
-                "methods": list(route.methods),
-                "name": route.name
-            })
-    return {
-        "total_routes": len(routes),
-        "routes": sorted(routes, key=lambda r: r["path"]),
-        "areas_routes": [r for r in sorted(routes, key=lambda r: r["path"]) if "area" in r["path"].lower()]
-    }
-
-# Montar archivos estáticos del frontend (solo si existen)
+# ---------------------------------------------------------------------------
+# Frontend estático (solo si el build existe)
+# ---------------------------------------------------------------------------
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
 if frontend_build_path.exists():
-    logger.info(f"Sirviendo frontend desde: {frontend_build_path}")
+    logger.info("Sirviendo frontend desde: %s", frontend_build_path)
     app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="frontend")
 else:
-    logger.warning(f"No encontrado: {frontend_build_path} - Frontend no será servido desde el backend")
+    logger.warning("Frontend build no encontrado en %s", frontend_build_path)
 
-# Permitir ejecución directa con python
+# Ejecución directa
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8080))
-    logger.info(f"Iniciando servidor en puerto {port}")
+    logger.info("Iniciando servidor en puerto %s", port)
     uvicorn.run("backend.server:app", host="0.0.0.0", port=port, reload=False)

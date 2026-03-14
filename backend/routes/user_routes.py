@@ -9,7 +9,7 @@ from openpyxl import Workbook
 
 from sqlalchemy.orm import Session
 
-from backend.schemas.user_schemas import UserCreate, UserUpdate, UserResponse
+from backend.schemas.user_schemas import UserCreate, UserUpdate, UserResponse, ChangePassword
 from backend.schemas.enums import RoleEnum
 from backend.services.auth_service import require_roles, hash_password
 from backend.db.session import get_db
@@ -144,6 +144,25 @@ def delete_user(user_id: str, current_user: User = Depends(require_roles(RoleEnu
     db.delete(user)
     db.commit()
     return {"message": "Usuario eliminado"}
+
+
+@router.put("/{user_id}/password")
+def change_user_password(
+    user_id: str,
+    payload: ChangePassword,
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
+    db: Session = Depends(get_db),
+):
+    """Cambiar contraseña de un usuario (solo administradores)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    user.password = hash_password(payload.new_password)
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    logger.info("Contraseña actualizada para usuario %s por admin %s", user_id, current_user.id)
+    return {"message": "Contraseña actualizada exitosamente"}
 
 
 @router.get("/export/excel")

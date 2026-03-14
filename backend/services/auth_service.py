@@ -3,14 +3,13 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
 import jwt
-import os
 from sqlalchemy.orm import Session
 
+from backend.core.config import JWT_SECRET
 from backend.db.session import get_db
 from backend.models.user import User
 
-# JWT Settings
-JWT_SECRET = os.environ.get('JWT_SECRET', 'super-secret-key-change-in-production')
+# JWT Settings (secreto centralizado en config.py)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 

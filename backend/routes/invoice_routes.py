@@ -1,24 +1,31 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
-from datetime import datetime, timezone
-import uuid
 from io import BytesIO
-from pathlib import Path
 from openpyxl import Workbook
-import shutil
-import re
 
 from sqlalchemy.orm import Session
 
 from backend.schemas.invoice_schemas import (
     InvoiceResponse,
     InvoiceStatusUpdate,
-    MovementHistoryResponse,
 )
 from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
 from backend.services.auth_service import require_roles, get_current_user
 from backend.services.pdf_storage import PDFStorage
+from backend.services.invoice_service import (
+    TREASURY_REVIEW_PENDING,
+    TREASURY_REVIEW_DONE,
+    to_iso_string,
+    utc_now,
+    validate_pdf_upload,
+    compress_pdf_safe,
+    log_movement,
+    get_first_treasury_review,
+    get_treasury_review_map,
+    build_invoice_response,
+    sanitize_filename,
+)
 from backend.services.invoice_document_service import (
     DOC_TYPE_INVOICE_PDF,
     DOC_TYPE_PAYMENT_PROOF,
@@ -32,114 +39,8 @@ from backend.db.session import get_db
 from backend.models.invoice import Invoice
 from backend.models.area import Area
 from backend.models.user import User
-from backend.models.movement import MovementHistory
-
-UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-# Maximum allowed PDF size before compression (10MB)
-MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
 
 router = APIRouter(prefix="/api", tags=["Invoices"])
-
-TREASURY_REVIEW_PENDING = "Sin revisión de tesorería"
-TREASURY_REVIEW_DONE = "Revisada por tesorería"
-
-
-def sanitize_filename(text: str) -> str:
-    """Sanitize filename by removing special characters"""
-    # Remove or replace special characters
-    text = re.sub(r'[^a-zA-Z0-9._-]', '_', text)
-    return text.strip('_')
-
-
-def log_movement(db: Session, factura_id: str, usuario_id: str, estatus_anterior: str, estatus_nuevo: str):
-    movement = MovementHistory(
-        factura_id=factura_id,
-        usuario_id=usuario_id,
-        estatus_anterior=estatus_anterior,
-        estatus_nuevo=estatus_nuevo,
-        fecha_cambio=datetime.now(timezone.utc),
-    )
-    db.add(movement)
-    db.commit()
-
-
-def to_iso_string(value) -> Optional[str]:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-
-    if isinstance(value, datetime):
-        normalized = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        return normalized.astimezone(timezone.utc).isoformat()
-
-    return str(value)
-
-
-def get_first_treasury_review(db: Session, invoice_id: str) -> Optional[MovementHistory]:
-    return (
-        db.query(MovementHistory)
-        .filter(
-            MovementHistory.factura_id == invoice_id,
-            MovementHistory.estatus_nuevo == TREASURY_REVIEW_DONE,
-        )
-        .order_by(MovementHistory.fecha_cambio.asc())
-        .first()
-    )
-
-
-def get_treasury_review_map(db: Session, invoice_ids: List[str]) -> dict:
-    if not invoice_ids:
-        return {}
-
-    movements = (
-        db.query(MovementHistory)
-        .filter(
-            MovementHistory.factura_id.in_(invoice_ids),
-            MovementHistory.estatus_nuevo == TREASURY_REVIEW_DONE,
-        )
-        .order_by(MovementHistory.fecha_cambio.asc())
-        .all()
-    )
-
-    review_map = {}
-    for movement in movements:
-        if movement.factura_id not in review_map:
-            review_map[movement.factura_id] = to_iso_string(movement.fecha_cambio)
-
-    return review_map
-
-
-def build_invoice_response(
-    inv: Invoice,
-    area_nombre: Optional[str] = None,
-    created_by_nombre: Optional[str] = None,
-    fecha_revision_tesoreria: Optional[str] = None,
-    comprobante_pago_subido: Optional[bool] = None,
-) -> InvoiceResponse:
-    proof_uploaded = comprobante_pago_subido if comprobante_pago_subido is not None else bool(inv.comprobante_pago_data)
-
-    return InvoiceResponse(
-        id=inv.id,
-        nombre_proveedor=inv.nombre_proveedor,
-        descripcion_factura=inv.descripcion_factura,
-        area_procedencia=inv.area_procedencia,
-        area_nombre=area_nombre,
-        monto=inv.monto,
-        fecha_vencimiento=inv.fecha_vencimiento,
-        folio_fiscal=inv.folio_fiscal,
-        estatus=inv.estatus,
-        fecha_pago_real=inv.fecha_pago_real,
-        comprobante_pago_subido=proof_uploaded,
-        created_by=inv.created_by,
-        created_by_nombre=created_by_nombre,
-        revisada_por_tesoreria=bool(fecha_revision_tesoreria),
-        fecha_revision_tesoreria=fecha_revision_tesoreria,
-        created_at=to_iso_string(inv.created_at),
-        updated_at=to_iso_string(inv.updated_at),
-    )
 
 
 @router.post("/invoices", response_model=InvoiceResponse)
@@ -157,10 +58,7 @@ def create_invoice(
     try:
         nombre_proveedor = sanitize_text(nombre_proveedor, "nombre_proveedor", max_length=255) or nombre_proveedor
         descripcion_factura = sanitize_text(
-            descripcion_factura,
-            "descripcion_factura",
-            max_length=1024,
-            allow_multiline=True,
+            descripcion_factura, "descripcion_factura", max_length=1024, allow_multiline=True,
         ) or descripcion_factura
         area_procedencia = validate_uuid_value(area_procedencia, "area_procedencia", required=True) or area_procedencia
         fecha_vencimiento = validate_iso_date(fecha_vencimiento, "fecha_vencimiento", required=True) or fecha_vencimiento
@@ -168,33 +66,16 @@ def create_invoice(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Validate PDF file exists and is not empty
-    if not pdf_file or not pdf_file.filename:
-        raise HTTPException(status_code=400, detail="Debe adjuntar un archivo PDF")
-    
-    if not pdf_file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
+    # Validar PDF (tamaño, extensión, vacío)
+    content = validate_pdf_upload(pdf_file)
 
-    # Check file size (max 10MB)
-    content = pdf_file.file.read()
-    if len(content) == 0:
-        raise HTTPException(status_code=400, detail="El archivo PDF está vacío")
-    
-    if len(content) > MAX_PDF_SIZE_BYTES:
-        raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
-
-    # Check duplicate folio
+    # Folio duplicado
     existing = db.query(Invoice).filter(Invoice.folio_fiscal == folio_fiscal).first()
     if existing:
         raise HTTPException(status_code=400, detail="El folio fiscal ya existe")
 
-    # Compress PDF for database storage (saves 70-80% space)
-    try:
-        compressed_pdf = PDFStorage.compress_pdf(content)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al comprimir PDF: {str(e)}")
-
-    now = datetime.now(timezone.utc)
+    compressed_pdf = compress_pdf_safe(content, "PDF de factura")
+    now = utc_now()
 
     try:
         invoice_obj = Invoice(
@@ -337,24 +218,13 @@ def replace_invoice_pdf(
     if current_user.rol == RoleEnum.USUARIO_AREA.value and inv.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="No autorizado para modificar esta factura")
 
-    if not pdf_file or not pdf_file.filename:
-        raise HTTPException(status_code=400, detail="Debe adjuntar un archivo PDF")
-
-    if not pdf_file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
-
-    content = pdf_file.file.read()
-    if len(content) == 0:
-        raise HTTPException(status_code=400, detail="El archivo PDF está vacío")
-
-    if len(content) > MAX_PDF_SIZE_BYTES:
-        raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
+    content = validate_pdf_upload(pdf_file)
+    compressed_pdf = compress_pdf_safe(content, "PDF de factura")
 
     try:
-        compressed_pdf = PDFStorage.compress_pdf(content)
         upsert_invoice_document(db, invoice_id, DOC_TYPE_INVOICE_PDF, compressed_pdf)
         inv.pdf_data = None
-        inv.updated_at = datetime.now(timezone.utc)
+        inv.updated_at = utc_now()
         db.commit()
     except Exception as e:
         db.rollback()
@@ -387,7 +257,7 @@ def update_invoice_status(
 
     try:
         inv.estatus = new_status
-        inv.updated_at = datetime.now(timezone.utc).isoformat()
+        inv.updated_at = utc_now()
         if status_update.fecha_pago_real:
             inv.fecha_pago_real = status_update.fecha_pago_real
         db.commit()
@@ -410,29 +280,19 @@ def upload_payment_proof(
     if not inv:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    if not proof_file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
+    content = validate_pdf_upload(proof_file)
+    compressed_proof = compress_pdf_safe(content, "comprobante de pago")
 
-    content = proof_file.file.read()
-    if len(content) > MAX_PDF_SIZE_BYTES:
-        raise HTTPException(status_code=400, detail="El archivo no puede superar 10MB")
-
-    # Compress payment proof for database storage
-    try:
-        compressed_proof = PDFStorage.compress_pdf(content)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al comprimir comprobante: {str(e)}")
-
-    # Automatically change status to Pagada when payment proof is uploaded
+    # Cambiar automáticamente a Pagada al subir comprobante
     old_status = inv.estatus
-    
+
     try:
         upsert_invoice_document(db, invoice_id, DOC_TYPE_PAYMENT_PROOF, compressed_proof)
         inv.comprobante_pago_data = None
         inv.estatus = InvoiceStatusEnum.PAGADA.value
-        inv.updated_at = datetime.now(timezone.utc).isoformat()
+        inv.updated_at = utc_now()
         if not inv.fecha_pago_real:
-            inv.fecha_pago_real = datetime.now(timezone.utc).date().isoformat()
+            inv.fecha_pago_real = utc_now().date().isoformat()
         db.commit()
 
         # Log movement
