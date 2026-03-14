@@ -40,7 +40,11 @@ import {
   UserCheck,
   UserX,
   Download,
-  KeyRound
+  KeyRound,
+  Sparkles,
+  Copy,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -65,6 +69,7 @@ const UsersPage = () => {
   const [passwordUser, setPasswordUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -216,9 +221,40 @@ const UsersPage = () => {
     });
   };
 
+  const generatePassword = () => {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghjkmnpqrstuvwxyz';
+    const digits = '23456789';
+    const all = upper + lower + digits + '!@#$%&*';
+    // Garantizar al menos 1 de cada tipo requerido
+    let pwd = [
+      upper[Math.floor(Math.random() * upper.length)],
+      lower[Math.floor(Math.random() * lower.length)],
+      digits[Math.floor(Math.random() * digits.length)],
+      '!@#$%&*'[Math.floor(Math.random() * 7)],
+    ];
+    for (let i = 4; i < 12; i++) {
+      pwd.push(all[Math.floor(Math.random() * all.length)]);
+    }
+    // Mezclar
+    for (let i = pwd.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
+    }
+    const generated = pwd.join('');
+    setNewPassword(generated);
+    setShowPassword(true);
+  };
+
+  const copyPassword = () => {
+    navigator.clipboard.writeText(newPassword);
+    toast.success('Contraseña copiada al portapapeles');
+  };
+
   const openPasswordDialog = (user) => {
     setPasswordUser(user);
     setNewPassword('');
+    setShowPassword(false);
     setPasswordDialogOpen(true);
   };
 
@@ -519,19 +555,56 @@ const UsersPage = () => {
           <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="new_password">Nueva Contraseña *</Label>
-              <Input
-                id="new_password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={8}
-                data-testid="new-password-input"
-              />
-              <p className="text-xs text-zinc-500">
-                Mínimo 8 caracteres, 1 mayúscula, 1 minúscula y 1 número
-              </p>
+              <div className="relative">
+                <Input
+                  id="new_password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={8}
+                  className="pr-20"
+                  data-testid="new-password-input"
+                />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? 'Ocultar' : 'Mostrar'}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </Button>
+                  {newPassword && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={copyPassword}
+                      title="Copiar"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-500">
+                  Mínimo 8 caracteres, 1 mayúscula, 1 minúscula y 1 número
+                </p>
+                <button
+                  type="button"
+                  onClick={generatePassword}
+                  className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center gap-1 hover:underline"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Sugerir contraseña
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
