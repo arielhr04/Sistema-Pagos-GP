@@ -181,12 +181,28 @@ app.include_router(system_router)
 app.include_router(seed_router)
 
 # ---------------------------------------------------------------------------
-# Frontend estático (solo si el build existe)
+# Frontend estático + SPA fallback
 # ---------------------------------------------------------------------------
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
 if frontend_build_path.exists():
     logger.info("Sirviendo frontend desde: %s", frontend_build_path)
-    app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="frontend")
+
+    # Servir archivos estáticos (JS, CSS, images) bajo /static
+    app.mount("/static", StaticFiles(directory=str(frontend_build_path / "static")), name="static")
+    app.mount("/images", StaticFiles(directory=str(frontend_build_path / "images")), name="images")
+
+    # SPA catch-all: cualquier ruta que NO sea /api/* devuelve index.html
+    # Esto permite que React Router maneje /users, /invoices, /dashboard, etc.
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Si el archivo existe en build/, servirlo directamente (favicon, manifest, etc.)
+        file_path = frontend_build_path / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(str(file_path))
+        # Para todo lo demás, devolver index.html → React Router decide qué mostrar
+        return FileResponse(str(frontend_build_path / "index.html"))
 else:
     logger.warning("Frontend build no encontrado en %s", frontend_build_path)
 
