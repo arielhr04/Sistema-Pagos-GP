@@ -154,7 +154,7 @@ const DashboardPage = () => {
   const [myInvoices, setMyInvoices] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [showAdminRegisterDialog, setShowAdminRegisterDialog] = useState(false);
+  const [showRegisterFormDialog, setShowRegisterFormDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [pendingStatus, setPendingStatus] = useState('');
   const [paymentDate, setPaymentDate] = useState(null);
@@ -1075,11 +1075,31 @@ const DashboardPage = () => {
   // Dashboard for Admin/Tesorero
   return (
     <div className="space-y-6 animate-fade-in" data-testid="admin-dashboard">
-      <div>
-        <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
-          Dashboard Ejecutivo
-        </h1>
-        <p className="text-zinc-500 mt-1">Resumen general del sistema de facturas</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
+            Dashboard Ejecutivo
+          </h1>
+          <p className="text-zinc-500 mt-1">Resumen general del sistema de facturas</p>
+        </div>
+        <Button
+          onClick={() => {
+            setFormData({
+              nombre_proveedor: '',
+              folio_fiscal: '',
+              area_procedencia: '',
+              monto: '',
+              fecha_vencimiento: null,
+              descripcion_factura: '',
+            });
+            setPdfFile(null);
+            setShowRegisterFormDialog(true);
+          }}
+          className="bg-red-600 hover:bg-red-700 h-10 gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Registrar Factura
+        </Button>
       </div>
 
       {/* Stats Grid */}
@@ -1113,24 +1133,6 @@ const DashboardPage = () => {
           color="green"
         />
       </div>
-
-      {/* Quick Register Invoice Card */}
-      <Card className="bg-gradient-to-br from-red-600 to-red-700 text-white border-0 hover:shadow-lg transition-all duration-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold font-[Chivo] mb-2">📝 Registrar Nueva Factura</h3>
-              <p className="text-red-100 text-sm">Captura una factura de cualquier usuario del sistema</p>
-            </div>
-            <Button
-              onClick={() => setShowAdminRegisterDialog(true)}
-              className="bg-white text-red-600 hover:bg-red-50 font-bold self-start"
-            >
-              Registrar
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Total Amount Card */}
       <Card className="bg-zinc-950 text-white border-0" data-tour="monto-total">
@@ -1286,20 +1288,23 @@ const DashboardPage = () => {
         </Card>
       )}
 
-      {/* Invoice Detail Dialog */}
-      <Dialog open={showAdminRegisterDialog} onOpenChange={setShowAdminRegisterDialog}>
-        <DialogContent className="max-w-2xl max-h-96 overflow-y-auto">
+      {/* Register Invoice Form Dialog (Admin/Tesorero) */}
+      <Dialog open={showRegisterFormDialog} onOpenChange={setShowRegisterFormDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold font-[Chivo]">Registrar Nueva Factura</DialogTitle>
-            <DialogDescription>Completa los datos de la factura a registrar</DialogDescription>
+            <DialogTitle className="text-xl font-bold font-[Chivo] flex items-center gap-2">
+              <Plus className="w-5 h-5 text-red-600" />
+              Registrar Nueva Factura
+            </DialogTitle>
+            <DialogDescription>Completa todos los campos obligatorios marcados con *</DialogDescription>
           </DialogHeader>
           {formData && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nombre_proveedor_admin">Proveedor *</Label>
+                  <Label htmlFor="nombre_proveedor_reg">Proveedor *</Label>
                   <Input
-                    id="nombre_proveedor_admin"
+                    id="nombre_proveedor_reg"
                     value={formData.nombre_proveedor}
                     onChange={(e) => setFormData({ ...formData, nombre_proveedor: e.target.value })}
                     placeholder="Empresa S.A. de C.V."
@@ -1307,9 +1312,9 @@ const DashboardPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="folio_fiscal_admin">Folio Fiscal *</Label>
+                  <Label htmlFor="folio_fiscal_reg">Folio Fiscal *</Label>
                   <Input
-                    id="folio_fiscal_admin"
+                    id="folio_fiscal_reg"
                     value={formData.folio_fiscal}
                     onChange={(e) => setFormData({ ...formData, folio_fiscal: e.target.value })}
                     placeholder="ABC123-DEF456"
@@ -1317,12 +1322,12 @@ const DashboardPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="area_admin">Área *</Label>
+                  <Label htmlFor="area_reg">Área *</Label>
                   <Select
                     value={formData.area_procedencia}
                     onValueChange={(value) => setFormData({ ...formData, area_procedencia: value })}
                   >
-                    <SelectTrigger id="area_admin">
+                    <SelectTrigger id="area_reg">
                       <SelectValue placeholder="Seleccionar área" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1335,33 +1340,75 @@ const DashboardPage = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="monto_admin">Monto *</Label>
+                  <Label htmlFor="monto_reg">Monto *</Label>
                   <Input
-                    id="monto_admin"
+                    id="monto_reg"
                     type="number"
                     step="0.01"
+                    min="0"
                     value={formData.monto}
                     onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
-                    placeholder="0.00"
+                    placeholder="10000.00"
                     required
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="descripcion_admin">Descripción</Label>
+                  <Label>Fecha de Vencimiento *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.fecha_vencimiento ? (
+                          format(formData.fecha_vencimiento, 'PPP', { locale: es })
+                        ) : (
+                          <span className="text-muted-foreground">Seleccionar fecha</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.fecha_vencimiento}
+                        onSelect={(date) => setFormData({ ...formData, fecha_vencimiento: date })}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="descripcion_reg">Descripción</Label>
                   <Textarea
-                    id="descripcion_admin"
+                    id="descripcion_reg"
                     value={formData.descripcion_factura}
                     onChange={(e) => setFormData({ ...formData, descripcion_factura: e.target.value })}
-                    placeholder="Detalles adicionales..."
-                    rows={2}
+                    placeholder="Detalles adicionales sobre la factura..."
+                    rows={3}
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>PDF de Factura *</Label>
+                  <div className="border-2 border-dashed border-zinc-300 rounded-lg p-6 text-center cursor-pointer hover:border-red-500 hover:bg-red-50 transition" {...getInvoicePdfRootProps()}>
+                    <input {...getInvoicePdfInputProps()} />
+                    <Upload className="w-8 h-8 mx-auto text-zinc-400 mb-2" />
+                    {pdfFile ? (
+                      <p className="text-sm text-green-600 font-medium">✓ {pdfFile.name}</p>
+                    ) : (
+                      <>
+                        <p className="text-sm text-zinc-600 font-medium">Arrastra el PDF aquí o haz clic para seleccionar</p>
+                        <p className="text-xs text-zinc-400 mt-1">Máximo 10 MB, solo PDF</p>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowAdminRegisterDialog(false)}
+                  onClick={() => setShowRegisterFormDialog(false)}
                 >
                   Cancelar
                 </Button>
