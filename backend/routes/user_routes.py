@@ -72,23 +72,10 @@ def create_user(user_data: UserCreate, current_user: User = Depends(require_role
         created_at=_to_iso_datetime(user_obj.created_at),
     )
 
-@router.get("", response_model=dict)
-@router.get("/", response_model=dict, include_in_schema=False)
-def get_users(
-    page: int = Query(1, ge=1, description="Número de página"),
-    limit: int = Query(20, ge=1, le=100, description="Registros por página"),
-    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
-    db: Session = Depends(get_db)
-):
-    """Obtener lista paginada de usuarios."""
-    # Total para paginación
-    total = db.query(User).count()
-    total_pages = max(1, (total + limit - 1) // limit)
-    
-    # Paginación
-    offset = (page - 1) * limit
-    users = db.query(User).order_by(User.created_at.desc()).offset(offset).limit(limit).all()
-    
+@router.get("", response_model=List[UserResponse])
+@router.get("/", response_model=List[UserResponse], include_in_schema=False)
+def get_users(current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
+    users = db.query(User).all()
     areas = {a.id: a.nombre for a in db.query(Area).all()}
     response_items: List[UserResponse] = []
 
@@ -109,13 +96,7 @@ def get_users(
         except Exception:
             logger.exception("Error serializando usuario %s", u.id)
 
-    return {
-        "items": response_items,
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "total_pages": total_pages,
-    }
+    return response_items
 
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(user_id: str, user_data: UserUpdate, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):

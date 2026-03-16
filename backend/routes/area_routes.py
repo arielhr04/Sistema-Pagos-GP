@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 import uuid
 import logging
@@ -25,33 +25,13 @@ def create_area(area_data: AreaCreate, current_user: User = Depends(require_role
     db.refresh(area_obj)
     return AreaResponse(id=area_obj.id, nombre=area_obj.nombre, descripcion=area_obj.descripcion)
 
-@router.get("", response_model=dict)
-def get_areas(
-    page: int = Query(1, ge=1, description="Número de página"),
-    limit: int = Query(20, ge=1, le=100, description="Registros por página"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Obtener lista paginada de áreas. Accesible por todos los usuarios autenticados."""
+@router.get("", response_model=List[AreaResponse])
+def get_areas(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Obtener lista de áreas. Accesible por todos los usuarios autenticados."""
     logger.info(f"📍 Obteniendo áreas para usuario: {current_user.email}")
-    
-    # Total para paginación
-    total = db.query(Area).count()
-    total_pages = max(1, (total + limit - 1) // limit)
-    
-    # Paginación
-    offset = (page - 1) * limit
-    areas = db.query(Area).order_by(Area.nombre).offset(offset).limit(limit).all()
-    
-    logger.info(f"✅ Áreas encontradas (página {page}): {len(areas)}")
-    
-    return {
-        "items": [AreaResponse(id=a.id, nombre=a.nombre, descripcion=a.descripcion) for a in areas],
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "total_pages": total_pages,
-    }
+    areas = db.query(Area).all()
+    logger.info(f"✅ Áreas encontradas: {len(areas)}")
+    return [AreaResponse(id=a.id, nombre=a.nombre, descripcion=a.descripcion) for a in areas]
 
 @router.delete("/{area_id}")
 def delete_area(area_id: str, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
