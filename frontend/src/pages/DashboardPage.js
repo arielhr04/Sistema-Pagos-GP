@@ -154,6 +154,7 @@ const DashboardPage = () => {
   const [myInvoices, setMyInvoices] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showAdminRegisterDialog, setShowAdminRegisterDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [pendingStatus, setPendingStatus] = useState('');
   const [paymentDate, setPaymentDate] = useState(null);
@@ -1113,6 +1114,24 @@ const DashboardPage = () => {
         />
       </div>
 
+      {/* Quick Register Invoice Card */}
+      <Card className="bg-gradient-to-br from-red-600 to-red-700 text-white border-0 hover:shadow-lg transition-all duration-200">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold font-[Chivo] mb-2">📝 Registrar Nueva Factura</h3>
+              <p className="text-red-100 text-sm">Captura una factura de cualquier usuario del sistema</p>
+            </div>
+            <Button
+              onClick={() => setShowAdminRegisterDialog(true)}
+              className="bg-white text-red-600 hover:bg-red-50 font-bold self-start"
+            >
+              Registrar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Total Amount Card */}
       <Card className="bg-zinc-950 text-white border-0" data-tour="monto-total">
         <CardContent className="p-6">
@@ -1266,6 +1285,98 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Invoice Detail Dialog */}
+      <Dialog open={showAdminRegisterDialog} onOpenChange={setShowAdminRegisterDialog}>
+        <DialogContent className="max-w-2xl max-h-96 overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold font-[Chivo]">Registrar Nueva Factura</DialogTitle>
+            <DialogDescription>Completa los datos de la factura a registrar</DialogDescription>
+          </DialogHeader>
+          {formData && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nombre_proveedor_admin">Proveedor *</Label>
+                  <Input
+                    id="nombre_proveedor_admin"
+                    value={formData.nombre_proveedor}
+                    onChange={(e) => setFormData({ ...formData, nombre_proveedor: e.target.value })}
+                    placeholder="Empresa S.A. de C.V."
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="folio_fiscal_admin">Folio Fiscal *</Label>
+                  <Input
+                    id="folio_fiscal_admin"
+                    value={formData.folio_fiscal}
+                    onChange={(e) => setFormData({ ...formData, folio_fiscal: e.target.value })}
+                    placeholder="ABC123-DEF456"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="area_admin">Área *</Label>
+                  <Select
+                    value={formData.area_procedencia}
+                    onValueChange={(value) => setFormData({ ...formData, area_procedencia: value })}
+                  >
+                    <SelectTrigger id="area_admin">
+                      <SelectValue placeholder="Seleccionar área" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {areas.map((area) => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="monto_admin">Monto *</Label>
+                  <Input
+                    id="monto_admin"
+                    type="number"
+                    step="0.01"
+                    value={formData.monto}
+                    onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="descripcion_admin">Descripción</Label>
+                  <Textarea
+                    id="descripcion_admin"
+                    value={formData.descripcion_factura}
+                    onChange={(e) => setFormData({ ...formData, descripcion_factura: e.target.value })}
+                    placeholder="Detalles adicionales..."
+                    rows={2}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowAdminRegisterDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {submitting ? 'Registrando...' : 'Registrar Factura'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Invoice Detail Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
