@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
@@ -23,30 +23,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
 import NotificationBell from './NotificationBell';
 import AppTour from './AppTour';
 
 const Layout = () => {
   const { user, logout } = useAuth();
-  const { needsTour, startTour } = useTour();
+  const { startTour } = useTour();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [welcomeOpen, setWelcomeOpen] = useState(false);
-
-  // Show welcome dialog on first visit
-  useEffect(() => {
-    if (needsTour) {
-      const timer = setTimeout(() => setWelcomeOpen(true), 600);
-      return () => clearTimeout(timer);
-    }
-  }, [needsTour]);
 
   const handleLogout = () => {
     logout();
@@ -202,40 +186,6 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
-
-      {/* Welcome dialog — first visit */}
-      <Dialog open={welcomeOpen} onOpenChange={setWelcomeOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold font-[Chivo]">
-              ¡Bienvenido al Sistema de Gestión de Facturas!
-            </DialogTitle>
-            <DialogDescription>
-              Te daremos un recorrido rápido para que conozcas las funciones principales del sistema.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 mt-4">
-            <Button
-              className="bg-red-600 hover:bg-red-700 text-white font-bold"
-              onClick={() => {
-                setWelcomeOpen(false);
-                setTimeout(() => startTour(), 300);
-              }}
-            >
-              Iniciar Recorrido (~2 min)
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setWelcomeOpen(false)}
-            >
-              Omitir por ahora
-            </Button>
-            <p className="text-xs text-zinc-400 text-center">
-              Puedes iniciar el recorrido en cualquier momento desde el botón <strong>?</strong> en la barra superior.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <AppTour />
     </div>

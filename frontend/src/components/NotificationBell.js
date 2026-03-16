@@ -12,6 +12,18 @@ import {
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 const POLL_INTERVAL_MS = 30_000; // 30 segundos
 
+const STATUS_STYLES = {
+  'Capturada':                   'bg-zinc-100 text-zinc-700',
+  'En revisión':                 'bg-yellow-100 text-yellow-700',
+  'Programada':                  'bg-blue-100 text-blue-700',
+  'Pagada':                      'bg-green-100 text-green-700',
+  'Rechazada':                   'bg-red-100 text-red-700',
+  'Sin revisión de tesorería':   'bg-zinc-100 text-zinc-700',
+  'Revisada por tesorería':      'bg-green-100 text-green-700',
+};
+const statusBadge = (text) =>
+  `inline-block px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${STATUS_STYLES[text] || 'bg-zinc-50 text-zinc-400'}`;
+
 const NotificationBell = () => {
   const { getAuthHeader } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -124,10 +136,11 @@ const NotificationBell = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-zinc-700 leading-snug">
                       <span className="font-medium">{n.usuario_nombre}</span>
-                      {' · '}
-                      <span className="text-zinc-400">{n.estatus_anterior || '—'}</span>
-                      {' → '}
-                      <span className="font-medium">{n.estatus_nuevo}</span>
+                    </p>
+                    <p className="flex items-center gap-1 mt-1 flex-wrap">
+                      <span className={statusBadge(n.estatus_anterior)}>{n.estatus_anterior || '—'}</span>
+                      <span className="text-[10px] text-zinc-400">→</span>
+                      <span className={statusBadge(n.estatus_nuevo)}>{n.estatus_nuevo}</span>
                     </p>
                     <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
                       {n.folio_fiscal}

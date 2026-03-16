@@ -119,10 +119,12 @@ const AppTour = () => {
 
       // Tour finished or skipped
       if (status === STATUS.FINISHED) {
+        setRun(false);
         completeTour();
         return;
       }
       if (status === STATUS.SKIPPED || action === ACTIONS.SKIP) {
+        setRun(false);
         skipTour();
         return;
       }
