@@ -21,6 +21,7 @@ class User(Base):
     rol = Column(String(50), nullable=False)
     area_id = Column(String(36), ForeignKey("tesoreriapp_gp_areas.id"), nullable=True)
     activo = Column(Boolean, default=True, nullable=False)
+    tour_completed = Column(Boolean, default=False, nullable=False, server_default="0")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

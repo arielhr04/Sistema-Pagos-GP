@@ -650,7 +650,7 @@ const DashboardPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Invoice Registration Form */}
-          <Card className="bg-white border border-zinc-200">
+          <Card className="bg-white border border-zinc-200" data-tour="invoice-form">
             <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Plus className="w-5 h-5 text-red-600" />
@@ -681,6 +681,7 @@ const DashboardPage = () => {
                       placeholder="ABC123-DEF456"
                       required
                       data-testid="dashboard-folio-input"
+                      data-tour="input-folio"
                     />
                   </div>
 
@@ -763,6 +764,7 @@ const DashboardPage = () => {
                     <Label>Archivo PDF *</Label>
                     <div 
                       {...getInvoicePdfRootProps()}
+                      data-tour="upload-pdf"
                       className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
                         pdfFile ? 'border-green-500 bg-green-50' : 
                         isInvoicePdfDragActive ? 'border-red-500 bg-red-50' : 
@@ -803,6 +805,7 @@ const DashboardPage = () => {
                   className="w-full bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wide text-sm h-11"
                   disabled={submitting || !pdfFile}
                   data-testid="dashboard-submit-btn"
+                  data-tour="btn-registrar"
                 >
                   {submitting ? (
                     <div className="flex items-center gap-2">
@@ -821,7 +824,7 @@ const DashboardPage = () => {
           </Card>
 
           {/* Recent Invoices */}
-          <Card className="bg-white border border-zinc-200">
+          <Card className="bg-white border border-zinc-200" data-tour="mis-facturas">
             <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <ListFilter className="w-5 h-5 text-red-600" />
@@ -1079,7 +1082,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children" data-tour="stats-grid">
         <StatCard
           title="Facturas Pendientes"
           value={stats?.total_pendientes || 0}
@@ -1111,7 +1114,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Total Amount Card */}
-      <Card className="bg-zinc-950 text-white border-0">
+      <Card className="bg-zinc-950 text-white border-0" data-tour="monto-total">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -1129,7 +1132,7 @@ const DashboardPage = () => {
       </Card>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-tour="charts">
         {/* Monthly Chart */}
         <Card className="bg-white border border-zinc-200">
           <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">

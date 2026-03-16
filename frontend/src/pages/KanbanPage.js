@@ -800,7 +800,7 @@ const KanbanPage = () => {
       </div>
 
       {/* Summary bar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap" data-tour="kanban-summary">
         {COLUMNS.map((col) => {
           const colState = columnData[col.id] || { total: 0 };
           const isCollapsed = collapsedColumns[col.id] || false;
@@ -831,7 +831,7 @@ const KanbanPage = () => {
         onDragEnd={handleDragEnd}
         onDragOver={handleKanbanDragOver}
       >
-        <div className="flex gap-6 overflow-x-auto pb-4">
+        <div className="flex gap-6 overflow-x-auto pb-4" data-tour="kanban-columns">
           {COLUMNS.map((column) => {
             const colState = columnData[column.id] || { items: [], total: 0, page: 1, loading: false };
             const hasMore = colState.items.length < colState.total;

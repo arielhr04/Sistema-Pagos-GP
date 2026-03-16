@@ -487,7 +487,7 @@ const InvoicesPage = () => {
         <CardContent className="p-4">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
+              <div className="flex-1 relative" data-tour="invoices-search">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <Input
                   placeholder="Buscar por proveedor, folio o descripción..."
@@ -499,7 +499,7 @@ const InvoicesPage = () => {
               </div>
             
               <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-full md:w-48" data-testid="status-filter-select">
+                <SelectTrigger className="w-full md:w-48" data-testid="status-filter-select" data-tour="invoices-status-filter">
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue placeholder="Estatus" />
                 </SelectTrigger>
@@ -530,6 +530,7 @@ const InvoicesPage = () => {
                 size="sm"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                 className={showAdvancedFilters ? 'border-red-300 text-red-600' : ''}
+                data-tour="invoices-advanced"
               >
                 <SlidersHorizontal className="w-4 h-4 mr-1" />
                 Filtros
@@ -542,6 +543,7 @@ const InvoicesPage = () => {
                 onClick={handleExportExcel}
                 disabled={exporting}
                 data-testid="export-excel-btn"
+                data-tour="invoices-export"
               >
                 {exporting ? 'Exportando...' : 'Exportar Excel'}
               </Button>
@@ -600,7 +602,7 @@ const InvoicesPage = () => {
       </Card>
 
       {/* Invoices Table */}
-      <Card className="bg-white border border-zinc-200">
+      <Card className="bg-white border border-zinc-200" data-tour="invoices-table">
         <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <History className="w-5 h-5 text-red-600" />

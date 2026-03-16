@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { Bell } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   Popover,
@@ -15,9 +15,9 @@ const POLL_INTERVAL_MS = 30_000; // 30 segundos
 const NotificationBell = () => {
   const { getAuthHeader } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const lastSeenRef = useRef(localStorage.getItem('notif_last_seen') || '');
+  const dismissedRef = useRef(new Set(JSON.parse(localStorage.getItem('notif_dismissed') || '[]')));
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -29,9 +29,10 @@ const NotificationBell = () => {
         `${API_URL}/api/notifications?${params.toString()}`,
         getAuthHeader()
       );
-      const items = response.data?.items || [];
+      const items = (response.data?.items || []).filter(
+        (n) => !dismissedRef.current.has(n.id)
+      );
       setNotifications(items);
-      setUnreadCount(items.length);
     } catch {
       // Silenciar errores de polling
     }
@@ -43,16 +44,32 @@ const NotificationBell = () => {
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
+  const dismissNotification = (id) => {
+    dismissedRef.current.add(id);
+    localStorage.setItem(
+      'notif_dismissed',
+      JSON.stringify([...dismissedRef.current])
+    );
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const dismissAll = () => {
+    notifications.forEach((n) => dismissedRef.current.add(n.id));
+    localStorage.setItem(
+      'notif_dismissed',
+      JSON.stringify([...dismissedRef.current])
+    );
+    setNotifications([]);
+  };
+
   const handleOpen = (isOpen) => {
     setOpen(isOpen);
     if (isOpen && notifications.length > 0) {
-      // Marcar como vistas: guardar el timestamp más reciente
       const latest = notifications[0]?.fecha;
       if (latest) {
         lastSeenRef.current = latest;
         localStorage.setItem('notif_last_seen', latest);
       }
-      setUnreadCount(0);
     }
   };
 
@@ -62,60 +79,73 @@ const NotificationBell = () => {
     const now = new Date();
     const diffMin = Math.round((now - d) / 60000);
     if (diffMin < 1) return 'ahora';
-    if (diffMin < 60) return `hace ${diffMin}min`;
+    if (diffMin < 60) return `${diffMin}min`;
     const diffH = Math.round(diffMin / 60);
-    if (diffH < 24) return `hace ${diffH}h`;
+    if (diffH < 24) return `${diffH}h`;
     return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
   };
 
   return (
     <Popover open={open} onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="relative p-2">
+        <Button variant="ghost" size="sm" className="relative p-2" data-tour="notifications">
           <Bell className="w-5 h-5 text-zinc-600" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
-              {unreadCount > 9 ? '9+' : unreadCount}
+          {notifications.length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center">
+              {notifications.length > 9 ? '9+' : notifications.length}
             </span>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
-        <div className="p-3 border-b border-zinc-100">
-          <h4 className="font-semibold text-sm">Notificaciones</h4>
+      <PopoverContent className="w-72 p-0" align="end">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100">
+          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Notificaciones</span>
+          {notifications.length > 0 && (
+            <button
+              onClick={dismissAll}
+              className="text-[10px] text-zinc-400 hover:text-red-600 transition-colors"
+            >
+              Limpiar todo
+            </button>
+          )}
         </div>
-        <div className="max-h-72 overflow-y-auto">
+        <div className="max-h-64 overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="p-6 text-center text-sm text-zinc-400">
-              Sin notificaciones recientes
+            <div className="py-8 text-center text-xs text-zinc-400">
+              Sin notificaciones
             </div>
           ) : (
-            notifications.map((n) => (
-              <div
-                key={n.id}
-                className="px-3 py-2.5 border-b border-zinc-50 hover:bg-zinc-50 last:border-0"
-              >
-                <div className="flex items-start justify-between gap-2">
+            <div className="p-1.5 space-y-1">
+              {notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className="group flex items-start gap-2 px-2.5 py-2 rounded-lg hover:bg-zinc-50 transition-colors"
+                >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-zinc-800 truncate">
-                      {n.folio_fiscal || 'Factura'}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {n.usuario_nombre} cambió de{' '}
-                      <span className="font-medium">{n.estatus_anterior || '—'}</span>
+                    <p className="text-xs text-zinc-700 leading-snug">
+                      <span className="font-medium">{n.usuario_nombre}</span>
+                      {' · '}
+                      <span className="text-zinc-400">{n.estatus_anterior || '—'}</span>
                       {' → '}
                       <span className="font-medium">{n.estatus_nuevo}</span>
                     </p>
-                    {n.proveedor && (
-                      <p className="text-xs text-zinc-400 truncate">{n.proveedor}</p>
-                    )}
+                    <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+                      {n.folio_fiscal}
+                      {n.proveedor ? ` · ${n.proveedor}` : ''}
+                      {' · '}
+                      {formatTime(n.fecha)}
+                    </p>
                   </div>
-                  <span className="text-[10px] text-zinc-400 whitespace-nowrap mt-0.5">
-                    {formatTime(n.fecha)}
-                  </span>
+                  <button
+                    onClick={() => dismissNotification(n.id)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-300 hover:text-zinc-600 transition-all"
+                    title="Descartar"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </PopoverContent>

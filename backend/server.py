@@ -38,6 +38,22 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Tablas de base de datos creadas/verificadas")
 
+    # Migrar esquema: agregar columnas nuevas a tablas existentes
+    try:
+        from sqlalchemy import inspect, text as sa_text
+        inspector = inspect(engine)
+        users_table = "tesoreriapp_gp_users"
+        if inspector.has_table(users_table):
+            existing_cols = {c["name"] for c in inspector.get_columns(users_table)}
+            if "tour_completed" not in existing_cols:
+                with engine.begin() as conn:
+                    conn.execute(sa_text(
+                        f"ALTER TABLE {users_table} ADD tour_completed BIT NOT NULL DEFAULT 0"
+                    ))
+                logger.info("Columna tour_completed añadida a %s", users_table)
+    except Exception as e:
+        logger.warning("Migración de esquema (tour_completed): %s", e)
+
     # Migrar PDFs legacy a tabla dedicada
     try:
         from backend.db.session import SessionLocal

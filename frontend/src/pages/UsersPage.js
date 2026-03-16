@@ -318,6 +318,7 @@ const UsersPage = () => {
                 className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wide text-sm"
                 onClick={openCreateDialog}
                 data-testid="new-user-btn"
+                data-tour="btn-new-user"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Nuevo Usuario
@@ -450,7 +451,7 @@ const UsersPage = () => {
       </Card>
 
       {/* Users Table */}
-      <Card className="bg-white border border-zinc-200">
+      <Card className="bg-white border border-zinc-200" data-tour="users-table">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center h-64">

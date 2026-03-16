@@ -89,7 +89,7 @@ const AuditPage = () => {
         <p className="text-zinc-500 mt-1">Historial de cambios de estatus y revisiones de tesorería</p>
       </div>
 
-      <Card className="bg-white border border-zinc-200">
+      <Card className="bg-white border border-zinc-200" data-tour="audit-table">
         <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <History className="w-5 h-5 text-red-600" />

@@ -14,6 +14,7 @@ class UserResponse(BaseModel):
     area_id: Optional[str] = None
     area_nombre: Optional[str] = None
     activo: bool
+    tour_completed: bool = False
     created_at: str
 
 

@@ -65,6 +65,7 @@ def login(request: LoginRequest, raw_request: Request, db: Session = Depends(get
             area_id=user.area_id,
             area_nombre=area_nombre,
             activo=user.activo,
+            tour_completed=user.tour_completed or False,
             created_at=user.created_at.isoformat(),
         ),
     )
@@ -86,8 +87,17 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
         area_id=user.area_id,
         area_nombre=area_nombre,
         activo=user.activo,
+        tour_completed=user.tour_completed or False,
         created_at=user.created_at.isoformat(),
     )
+
+
+@router.post("/tour-completed")
+def mark_tour_completed(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Marcar el tour de onboarding como completado."""
+    current_user.tour_completed = True
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/refresh")

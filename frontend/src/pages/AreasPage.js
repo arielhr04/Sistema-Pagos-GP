@@ -111,6 +111,7 @@ const AreasPage = () => {
             <Button
               className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wide text-sm"
               data-testid="new-area-btn"
+              data-tour="btn-new-area"
             >
               <Plus className="w-4 h-4 mr-2" />
               Nueva Área
