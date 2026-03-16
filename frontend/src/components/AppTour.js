@@ -100,11 +100,13 @@ const AppTour = () => {
   }, [tourActive, tourKey]);
 
   // Annotate steps: add pageHint if the step is on a different page
+  // disableBeacon removes the pulsing pink circle on each step
   const annotatedSteps = steps.map((step) => {
     const onDifferentPage =
       step.page && !location.pathname.startsWith(step.page);
     return {
       ...step,
+      disableBeacon: true,
       pageHint: onDifferentPage
         ? `Navega a "${step.page}" en el menú lateral para ver este elemento.`
         : undefined,
