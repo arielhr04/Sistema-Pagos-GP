@@ -23,7 +23,7 @@ from backend.db.base import Base
 from backend.models.user import User
 from backend.models.area import Area
 from backend.models.invoice import Invoice
-from backend.models.movement import Movement
+from backend.models.movement import MovementHistory
 from backend.models.login_audit import LoginAudit
 
 # Logging
