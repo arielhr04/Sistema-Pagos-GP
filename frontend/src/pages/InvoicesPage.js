@@ -631,7 +631,6 @@ const InvoicesPage = () => {
                         <SelectValue placeholder="Todos los usuarios" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todos los usuarios</SelectItem>
                         {usuarios.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.nombre}
