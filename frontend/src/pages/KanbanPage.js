@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -28,7 +28,6 @@ import { Badge } from '../components/ui/badge';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import { parseDateOnly } from '../lib/date';
-import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
   Dialog,
   DialogContent,
@@ -50,23 +49,24 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
   Search, 
-  FileText, 
-  DollarSign, 
+  FileText,
   Calendar as CalendarIcon,
   Upload,
   GripVertical,
-  X
+  ChevronDown,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
-const CACHE_TTL_KANBAN_MS = 90 * 1000;
+const COLUMN_PAGE_SIZE = 10;
 
 const COLUMNS = [
-  { id: 'Capturada', title: 'Capturada', color: 'border-t-zinc-500' },
-  { id: 'En revisión', title: 'En revisión', color: 'border-t-yellow-500' },
-  { id: 'Programada', title: 'Programada', color: 'border-t-blue-500' },
-  { id: 'Pagada', title: 'Pagada', color: 'border-t-green-500' },
-  { id: 'Rechazada', title: 'Rechazada', color: 'border-t-red-500' },
+  { id: 'Capturada', title: 'Capturada', color: 'border-t-zinc-500', defaultVisible: true },
+  { id: 'En revisión', title: 'En revisión', color: 'border-t-yellow-500', defaultVisible: true },
+  { id: 'Programada', title: 'Programada', color: 'border-t-blue-500', defaultVisible: true },
+  { id: 'Pagada', title: 'Pagada', color: 'border-t-green-500', defaultVisible: false },
+  { id: 'Rechazada', title: 'Rechazada', color: 'border-t-red-500', defaultVisible: false },
 ];
 
 const getTrafficLight = (fechaVencimiento) => {
@@ -216,48 +216,88 @@ const InvoiceCardOverlay = ({ invoice }) => {
 };
 
 // Droppable Column
-const KanbanColumn = ({ column, invoices, onCardClick }) => {
+const KanbanColumn = ({ column, invoices, totalCount, onCardClick, onLoadMore, loadingMore, hasMore, collapsed, onToggleCollapse }) => {
   const total = invoices.reduce((sum, inv) => sum + inv.monto, 0);
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
 
   return (
-    <div className="flex-shrink-0 w-80">
-      <Card className={`bg-white border border-zinc-200 border-t-4 ${column.color} h-full ${isOver ? 'ring-2 ring-red-400 bg-red-50/30' : ''}`}>
-        <CardHeader className="p-4 border-b border-zinc-100 bg-zinc-50/50">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold uppercase tracking-wide">
-              {column.title}
-            </CardTitle>
-            <Badge variant="secondary" className="font-mono">
-              {invoices.length}
-            </Badge>
-          </div>
-          <p className="text-xs text-zinc-500 font-mono mt-1">
-            {formatCurrency(total)}
-          </p>
-        </CardHeader>
-        <CardContent ref={setNodeRef} className="p-3 space-y-3 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto">
-          <SortableContext
-            items={invoices.map((i) => i.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {invoices.map((invoice) => (
-              <SortableInvoiceCard
-                key={invoice.id}
-                invoice={invoice}
-                onClick={onCardClick}
-              />
-            ))}
-          </SortableContext>
-          {invoices.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-32 text-zinc-400">
-              <FileText className="w-8 h-8 mb-2" />
-              <p className="text-sm">Sin facturas</p>
+    <div className={`flex-shrink-0 transition-all duration-300 ${collapsed ? 'w-16' : 'w-80'}`}>
+      <Card className={`bg-white border border-zinc-200 border-t-4 ${column.color} h-full ${isOver && !collapsed ? 'ring-2 ring-red-400 bg-red-50/30' : ''}`}>
+        <CardHeader
+          className="p-4 border-b border-zinc-100 bg-zinc-50/50 cursor-pointer select-none"
+          onClick={onToggleCollapse}
+        >
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <ChevronRight className="w-4 h-4 text-zinc-400" />
+              <span className="text-xs font-bold uppercase tracking-wide [writing-mode:vertical-lr] rotate-180">
+                {column.title}
+              </span>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {totalCount}
+              </Badge>
             </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ChevronDown className="w-4 h-4 text-zinc-400" />
+                  <CardTitle className="text-sm font-bold uppercase tracking-wide">
+                    {column.title}
+                  </CardTitle>
+                </div>
+                <Badge variant="secondary" className="font-mono">
+                  {invoices.length} / {totalCount}
+                </Badge>
+              </div>
+              <p className="text-xs text-zinc-500 font-mono mt-1">
+                {formatCurrency(total)}
+              </p>
+            </>
           )}
-        </CardContent>
+        </CardHeader>
+        {!collapsed && (
+          <CardContent ref={setNodeRef} className="p-3 space-y-3 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto">
+            <SortableContext
+              items={invoices.map((i) => i.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {invoices.map((invoice) => (
+                <SortableInvoiceCard
+                  key={invoice.id}
+                  invoice={invoice}
+                  onClick={onCardClick}
+                />
+              ))}
+            </SortableContext>
+            {invoices.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-32 text-zinc-400">
+                <FileText className="w-8 h-8 mb-2" />
+                <p className="text-sm">Sin facturas</p>
+              </div>
+            )}
+            {hasMore && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-zinc-500 hover:text-zinc-700"
+                onClick={onLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  `Cargar más (${totalCount - invoices.length} restantes)`
+                )}
+              </Button>
+            )}
+          </CardContent>
+        )}
       </Card>
     </div>
   );
@@ -265,7 +305,14 @@ const KanbanColumn = ({ column, invoices, onCardClick }) => {
 
 const KanbanPage = () => {
   const { token, user, getAuthHeader } = useAuth();
-  const [invoices, setInvoices] = useState([]);
+  // Per-column state: { [status]: { items: [], total: 0, page: 1, loading: false } }
+  const [columnData, setColumnData] = useState(() => {
+    const initial = {};
+    COLUMNS.forEach((col) => {
+      initial[col.id] = { items: [], total: 0, page: 1, loading: false };
+    });
+    return initial;
+  });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeId, setActiveId] = useState(null);
@@ -275,10 +322,24 @@ const KanbanPage = () => {
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [paymentDate, setPaymentDate] = useState(null);
   const [updating, setUpdating] = useState(false);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [invoiceReplacementPdfFile, setInvoiceReplacementPdfFile] = useState(null);
+  const [collapsedColumns, setCollapsedColumns] = useState(() => {
+    const saved = localStorage.getItem('kanban_collapsed');
+    if (saved) return JSON.parse(saved);
+    // Collapse finished columns by default
+    const initial = {};
+    COLUMNS.forEach((col) => {
+      initial[col.id] = !col.defaultVisible;
+    });
+    return initial;
+  });
   const invoicePdfInputRef = useRef(null);
   const paymentProofInputRef = useRef(null);
+
+  // Compute flat invoices array from all columns (for drag-and-drop lookups)
+  const invoices = useMemo(() => {
+    return Object.values(columnData).flatMap((col) => col.items);
+  }, [columnData]);
 
   const targetStatus = pendingStatus || selectedInvoice?.estatus || '';
   const hasUploadedPaymentProof = Boolean(selectedInvoice?.comprobante_pago_subido);
@@ -304,47 +365,82 @@ const KanbanPage = () => {
     })
   );
 
-  const fetchInvoices = useCallback(async () => {
-    const cacheKey = buildCacheKey(
-      'kanban',
-      user?.id || user?.email || 'anon',
-      searchTerm || 'all'
-    );
-    const cachedInvoices = readApiCache(cacheKey, CACHE_TTL_KANBAN_MS);
-    const hasCachedInvoices = Array.isArray(cachedInvoices);
+  const toggleColumnCollapse = useCallback((columnId) => {
+    setCollapsedColumns((prev) => {
+      const next = { ...prev, [columnId]: !prev[columnId] };
+      localStorage.setItem('kanban_collapsed', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
-    if (hasCachedInvoices) {
-      setInvoices(cachedInvoices);
-      setLoading(false);
-    }
+  // Fetch a single column's data (page 1 or append next page)
+  const fetchColumn = useCallback(async (status, page = 1, append = false) => {
+    setColumnData((prev) => ({
+      ...prev,
+      [status]: { ...prev[status], loading: true },
+    }));
 
     try {
-      const params = searchTerm ? `?search=${searchTerm}&limit=100` : '?limit=100';
-      const response = await axios.get(`${API_URL}/api/invoices${params}`, getAuthHeader());
+      const params = new URLSearchParams({
+        estatus: status,
+        page: String(page),
+        limit: String(COLUMN_PAGE_SIZE),
+      });
+      if (searchTerm) params.set('search', searchTerm);
+
+      const response = await axios.get(
+        `${API_URL}/api/invoices?${params}`,
+        getAuthHeader()
+      );
       const data = response.data;
-      const items = Array.isArray(data) ? data : data.items || [];
-      setInvoices(items);
-      writeApiCache(cacheKey, items);
+      const newItems = Array.isArray(data) ? data : data.items || [];
+      const total = data.total || newItems.length;
+
+      setColumnData((prev) => ({
+        ...prev,
+        [status]: {
+          items: append ? [...prev[status].items, ...newItems] : newItems,
+          total,
+          page,
+          loading: false,
+        },
+      }));
     } catch (error) {
-      console.error('Error fetching invoices:', error);
-      if (!hasCachedInvoices) {
-        toast.error('Error al cargar facturas');
-      }
+      console.error(`Error fetching column ${status}:`, error);
+      setColumnData((prev) => ({
+        ...prev,
+        [status]: { ...prev[status], loading: false },
+      }));
+    }
+  }, [searchTerm, getAuthHeader]);
+
+  // Fetch all columns (initial load or search change)
+  const fetchAllColumns = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all(COLUMNS.map((col) => fetchColumn(col.id, 1, false)));
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, getAuthHeader, user?.id, user?.email]);
+  }, [fetchColumn]);
+
+  // Load more for a specific column
+  const handleLoadMore = useCallback((status) => {
+    const current = columnData[status];
+    if (!current || current.loading) return;
+    const nextPage = current.page + 1;
+    fetchColumn(status, nextPage, true);
+  }, [columnData, fetchColumn]);
 
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
-      fetchInvoices();
+      fetchAllColumns();
     }, 300);
     return () => clearTimeout(debounceTimer);
-  }, [fetchInvoices]);
+  }, [fetchAllColumns]);
 
-  const getInvoicesByStatus = (status) => {
-    return invoices.filter((inv) => inv.estatus === status);
-  };
+  // Alias for post-action refresh
+  const fetchInvoices = fetchAllColumns;
 
   const handleDragStart = (event) => {
     setActiveId(event.active.id);
@@ -360,42 +456,47 @@ const KanbanPage = () => {
     if (!activeInvoice) return;
 
     // Determine target status
-    let targetStatus = null;
+    let newTargetStatus = null;
     
     // Check if dropped directly on a column
     if (COLUMNS.some(c => c.id === over.id)) {
-      targetStatus = over.id;
+      newTargetStatus = over.id;
     } else {
       // Dropped on an invoice card, find which column it belongs to
       const overInvoice = invoices.find((i) => i.id === over.id);
       if (overInvoice) {
-        targetStatus = overInvoice.estatus;
+        newTargetStatus = overInvoice.estatus;
       }
     }
 
-    if (!targetStatus || activeInvoice.estatus === targetStatus) return;
+    if (!newTargetStatus || activeInvoice.estatus === newTargetStatus) return;
 
-    // Optimistic update - update UI immediately
-    const previousInvoices = [...invoices];
-    setInvoices(invoices.map(inv => 
-      inv.id === activeInvoice.id 
-        ? { ...inv, estatus: targetStatus }
-        : inv
-    ));
+    const previousColumnData = { ...columnData };
+    const sourceStatus = activeInvoice.estatus;
+
+    // Optimistic update - move card between columns
+    setColumnData((prev) => {
+      const sourceItems = prev[sourceStatus].items.filter((i) => i.id !== activeInvoice.id);
+      const movedInvoice = { ...activeInvoice, estatus: newTargetStatus };
+      const targetItems = [movedInvoice, ...prev[newTargetStatus].items];
+      return {
+        ...prev,
+        [sourceStatus]: { ...prev[sourceStatus], items: sourceItems, total: prev[sourceStatus].total - 1 },
+        [newTargetStatus]: { ...prev[newTargetStatus], items: targetItems, total: prev[newTargetStatus].total + 1 },
+      };
+    });
 
     // Update on server
     try {
       await axios.put(
         `${API_URL}/api/invoices/${activeInvoice.id}/status`,
-        { nuevo_estatus: targetStatus },
+        { nuevo_estatus: newTargetStatus },
         getAuthHeader()
       );
-      toast.success(`Factura movida a "${targetStatus}"`);
+      toast.success(`Factura movida a "${newTargetStatus}"`);
     } catch (error) {
       console.error('Error updating status:', error);
-      console.error('Full error response:', JSON.stringify(error.response, null, 2));
       
-      // Extraer el mensaje de error del backend
       const errorMsg = error.response?.data?.detail 
         || error.response?.data?.message 
         || error.response?.data 
@@ -404,7 +505,7 @@ const KanbanPage = () => {
       
       toast.error(errorMsg);
       // Revert on error
-      setInvoices(previousInvoices);
+      setColumnData(previousColumnData);
     }
   };
 
@@ -417,14 +518,22 @@ const KanbanPage = () => {
 
     if (!activeInvoice) return;
 
-    // If over another invoice in same column, reorder
+    // If over another invoice in same column, reorder within column data
     if (overInvoice && activeInvoice.estatus === overInvoice.estatus) {
-      const activeIndex = invoices.findIndex((i) => i.id === active.id);
-      const overIndex = invoices.findIndex((i) => i.id === over.id);
-      
-      if (activeIndex !== overIndex) {
-        setInvoices(arrayMove(invoices, activeIndex, overIndex));
-      }
+      const status = activeInvoice.estatus;
+      setColumnData((prev) => {
+        const items = [...prev[status].items];
+        const activeIndex = items.findIndex((i) => i.id === active.id);
+        const overIndex = items.findIndex((i) => i.id === over.id);
+        
+        if (activeIndex !== overIndex && activeIndex !== -1 && overIndex !== -1) {
+          return {
+            ...prev,
+            [status]: { ...prev[status], items: arrayMove(items, activeIndex, overIndex) },
+          };
+        }
+        return prev;
+      });
     }
   };
 
@@ -690,6 +799,31 @@ const KanbanPage = () => {
         </div>
       </div>
 
+      {/* Summary bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {COLUMNS.map((col) => {
+          const colState = columnData[col.id] || { total: 0 };
+          const isCollapsed = collapsedColumns[col.id] || false;
+          return (
+            <button
+              key={col.id}
+              onClick={() => toggleColumnCollapse(col.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                isCollapsed
+                  ? 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
+                  : 'bg-zinc-900 text-white hover:bg-zinc-800'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${col.color.replace('border-t-', 'bg-')}`} />
+              {col.title}
+              <Badge variant={isCollapsed ? 'outline' : 'secondary'} className="text-xs ml-1 px-1.5 py-0">
+                {colState.total}
+              </Badge>
+            </button>
+          );
+        })}
+      </div>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -698,14 +832,24 @@ const KanbanPage = () => {
         onDragOver={handleKanbanDragOver}
       >
         <div className="flex gap-6 overflow-x-auto pb-4">
-          {COLUMNS.map((column) => (
-            <KanbanColumn
-              key={column.id}
-              column={column}
-              invoices={getInvoicesByStatus(column.id)}
-              onCardClick={openInvoiceDialog}
-            />
-          ))}
+          {COLUMNS.map((column) => {
+            const colState = columnData[column.id] || { items: [], total: 0, page: 1, loading: false };
+            const hasMore = colState.items.length < colState.total;
+            return (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                invoices={colState.items}
+                totalCount={colState.total}
+                onCardClick={openInvoiceDialog}
+                onLoadMore={() => handleLoadMore(column.id)}
+                loadingMore={colState.loading}
+                hasMore={hasMore}
+                collapsed={collapsedColumns[column.id] || false}
+                onToggleCollapse={() => toggleColumnCollapse(column.id)}
+              />
+            );
+          })}
         </div>
 
         <DragOverlay dropAnimation={{
