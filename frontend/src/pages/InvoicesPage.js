@@ -205,7 +205,6 @@ const InvoicesPage = () => {
   useEffect(() => {
     fetchAreas();
     fetchUsuarios();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
