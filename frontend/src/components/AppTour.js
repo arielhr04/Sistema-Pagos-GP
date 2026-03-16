@@ -134,7 +134,14 @@ const AppTour = () => {
         const nextIndex =
           action === ACTIONS.PREV ? index - 1 : index + 1;
 
-        if (nextIndex >= 0 && nextIndex < steps.length) {
+        // Last step completed → close tour
+        if (nextIndex >= steps.length) {
+          setRun(false);
+          completeTour();
+          return;
+        }
+
+        if (nextIndex >= 0) {
           const nextStep = steps[nextIndex];
 
           // Navigate to the correct page if needed
