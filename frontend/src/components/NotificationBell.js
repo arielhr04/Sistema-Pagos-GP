@@ -144,8 +144,13 @@ const NotificationBell = () => {
                     </p>
                     <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
                       {n.folio_fiscal}
-                      {n.proveedor ? ` · ${n.proveedor}` : ''}
-                      {' · '}
+                    </p>
+                    {n.proveedor && (
+                      <p className="text-[10px] text-zinc-400 truncate">
+                        {n.proveedor}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-zinc-400">
                       {formatTime(n.fecha)}
                     </p>
                   </div>
