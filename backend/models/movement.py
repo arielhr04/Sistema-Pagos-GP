@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
 from backend.db.base import Base
@@ -19,6 +19,13 @@ class MovementHistory(Base):
     estatus_anterior = Column(String(50), nullable=False)
     estatus_nuevo = Column(String(50), nullable=False)
     fecha_cambio = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # Índices para auditoría y búsquedas
+    __table_args__ = (
+        Index('idx_movement_factura_id', 'factura_id'),
+        Index('idx_movement_usuario_id', 'usuario_id'),
+        Index('idx_movement_fecha_cambio', 'fecha_cambio'),
+    )
 
     invoice = relationship("Invoice", back_populates="movements")
     usuario = relationship("User", back_populates="movements")

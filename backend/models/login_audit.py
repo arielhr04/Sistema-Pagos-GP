@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 
 from backend.db.base import Base
@@ -22,5 +22,12 @@ class LoginAudit(Base):
     user_agent = Column(Text, nullable=True)
     fecha = Column(DateTime, nullable=False, default=datetime.utcnow)
     estado = Column(String(20), nullable=False, default="success")  # success, failed
+
+    # Índices para auditoría de seguridad
+    __table_args__ = (
+        Index('idx_login_audit_usuario_id', 'usuario_id'),
+        Index('idx_login_audit_evento_tipo', 'evento_tipo'),
+        Index('idx_login_audit_fecha', 'fecha'),
+    )
 
     usuario = relationship("User", back_populates="login_audits")

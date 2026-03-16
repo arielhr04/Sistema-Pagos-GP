@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
 from backend.db.base import Base
@@ -24,6 +24,14 @@ class User(Base):
     tour_completed = Column(Boolean, default=False, nullable=False, server_default="0")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Índices para búsquedas frecuentes
+    __table_args__ = (
+        Index('idx_user_email', 'email'),
+        Index('idx_user_rol', 'rol'),
+        Index('idx_user_area_id', 'area_id'),
+        Index('idx_user_activo', 'activo'),
+    )
 
     area = relationship("Area", back_populates="users")
     invoices = relationship("Invoice", back_populates="creator")

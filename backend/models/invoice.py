@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, LargeBinary
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, LargeBinary, Index
 from sqlalchemy.orm import deferred, relationship
 
 from backend.db.base import Base
@@ -27,6 +27,16 @@ class Invoice(Base):
     created_by = Column(String(36), ForeignKey("tesoreriapp_gp_users.id"), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Índices para búsquedas y filtros frecuentes
+    __table_args__ = (
+        Index('idx_invoice_estatus', 'estatus'),
+        Index('idx_invoice_fecha_vencimiento', 'fecha_vencimiento'),
+        Index('idx_invoice_folio_fiscal', 'folio_fiscal'),
+        Index('idx_invoice_nombre_proveedor', 'nombre_proveedor'),
+        Index('idx_invoice_created_by', 'created_by'),
+        Index('idx_invoice_area_procedencia', 'area_procedencia'),
+    )
 
     creator = relationship("User", back_populates="invoices")
     area = relationship("Area", back_populates="invoices")
