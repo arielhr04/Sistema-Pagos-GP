@@ -584,7 +584,7 @@ const InvoicesPage = () => {
             </div>
 
             {showAdvancedFilters && (
-              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 pt-3 border-t border-zinc-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 pt-3 border-t border-zinc-100 relative z-10">
                 <div>
                   <Label className="text-xs text-zinc-500 mb-1 block">Monto mínimo</Label>
                   <Input
