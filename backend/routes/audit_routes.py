@@ -5,10 +5,12 @@ from datetime import timezone
 from sqlalchemy.orm import Session
 
 from backend.schemas.invoice_schemas import MovementHistoryResponse
+from backend.schemas.login_audit_schemas import LoginAuditResponse
 from backend.schemas.enums import RoleEnum
 from backend.services.auth_service import require_roles
 from backend.db.session import get_db
 from backend.models.movement import MovementHistory
+from backend.models.login_audit import LoginAudit
 from backend.models.user import User
 from backend.models.invoice import Invoice
 
@@ -62,4 +64,42 @@ def get_audit_logs(
             fecha_cambio=_to_utc_iso(m.fecha_cambio),
         )
         for m in movements
+    ]
+
+
+@router.get("/audit/login", response_model=List[LoginAuditResponse])
+def get_login_audit_logs(
+    limit: int = Query(200, le=500),
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
+    db: Session = Depends(get_db),
+):
+    """Historial de logs de login/logout/cambios de password — solo para admins."""
+    login_logs = (
+        db.query(LoginAudit)
+        .order_by(LoginAudit.fecha.desc())
+        .limit(limit)
+        .all()
+    )
+
+    # Obtener nombres de usuarios para los registros con usuario_id
+    user_ids = {l.usuario_id for l in login_logs if l.usuario_id}
+    users_map = (
+        {u.id: u.nombre for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        if user_ids else {}
+    )
+
+    return [
+        LoginAuditResponse(
+            id=l.id,
+            usuario_id=l.usuario_id,
+            email_intentado=l.email_intentado,
+            usuario_nombre=users_map.get(l.usuario_id),
+            evento_tipo=l.evento_tipo,
+            razon=l.razon,
+            ip_address=l.ip_address,
+            user_agent=l.user_agent,
+            fecha=_to_utc_iso(l.fecha),
+            estado=l.estado,
+        )
+        for l in login_logs
     ]

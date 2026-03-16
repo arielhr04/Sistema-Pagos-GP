@@ -28,3 +28,4 @@ class User(Base):
     area = relationship("Area", back_populates="users")
     invoices = relationship("Invoice", back_populates="creator")
     movements = relationship("MovementHistory", back_populates="usuario")
+    login_audits = relationship("LoginAudit", back_populates="usuario")

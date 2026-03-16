@@ -19,6 +19,13 @@ from backend.core.config import IS_PRODUCTION
 from backend.db.session import engine
 from backend.db.base import Base
 
+# Importar modelos para que SQLAlchemy los registre
+from backend.models.user import User
+from backend.models.area import Area
+from backend.models.invoice import Invoice
+from backend.models.movement import Movement
+from backend.models.login_audit import LoginAudit
+
 # Logging
 logging.basicConfig(
     level=logging.INFO,
