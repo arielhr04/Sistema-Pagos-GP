@@ -43,7 +43,12 @@ import {
   X,
   History,
   Upload,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  SlidersHorizontal
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -68,6 +73,14 @@ const InvoicesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
+  const [montoMin, setMontoMin] = useState('');
+  const [montoMax, setMontoMax] = useState('');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalInvoices, setTotalInvoices] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -98,13 +111,16 @@ const InvoicesPage = () => {
       user?.id || user?.email || 'anon',
       searchTerm || 'all',
       statusFilter || 'all',
-      areaFilter || 'all'
+      areaFilter || 'all',
+      String(page)
     );
-    const cachedInvoices = readApiCache(cacheKey, CACHE_TTL_INVOICES_MS);
-    const hasCachedInvoices = Array.isArray(cachedInvoices);
+    const cachedData = readApiCache(cacheKey, CACHE_TTL_INVOICES_MS);
+    const hasCached = cachedData && Array.isArray(cachedData.items);
 
-    if (hasCachedInvoices) {
-      setInvoices(cachedInvoices);
+    if (hasCached) {
+      setInvoices(cachedData.items);
+      setTotalPages(cachedData.total_pages || 1);
+      setTotalInvoices(cachedData.total || 0);
       setLoading(false);
     }
 
@@ -113,22 +129,32 @@ const InvoicesPage = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('estatus', statusFilter);
       if (areaFilter) params.append('area', areaFilter);
+      if (montoMin) params.append('monto_min', montoMin);
+      if (montoMax) params.append('monto_max', montoMax);
+      if (fechaDesde) params.append('fecha_desde', fechaDesde);
+      if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+      params.append('page', String(page));
+      params.append('limit', '20');
       
       const response = await axios.get(
         `${API_URL}/api/invoices?${params.toString()}`,
         getAuthHeader()
       );
-      setInvoices(response.data);
-      writeApiCache(cacheKey, response.data);
+      const data = response.data;
+      const items = Array.isArray(data) ? data : data.items || [];
+      setInvoices(items);
+      setTotalPages(data.total_pages || 1);
+      setTotalInvoices(data.total || items.length);
+      writeApiCache(cacheKey, data);
     } catch (error) {
       console.error('Error fetching invoices:', error);
-      if (!hasCachedInvoices) {
+      if (!hasCached) {
         toast.error('Error al cargar facturas');
       }
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, statusFilter, areaFilter, getAuthHeader, user?.id, user?.email]);
+  }, [searchTerm, statusFilter, areaFilter, montoMin, montoMax, fechaDesde, fechaHasta, page, getAuthHeader, user?.id, user?.email]);
 
   const fetchAreas = useCallback(async () => {
     const areasCacheKey = buildCacheKey('areas');
@@ -166,7 +192,14 @@ const InvoicesPage = () => {
     setSearchTerm('');
     setStatusFilter('');
     setAreaFilter('');
+    setMontoMin('');
+    setMontoMax('');
+    setFechaDesde('');
+    setFechaHasta('');
+    setPage(1);
   };
+
+  const hasActiveFilters = searchTerm || statusFilter || areaFilter || montoMin || montoMax || fechaDesde || fechaHasta;
 
   const handleInvoiceClick = async (invoice) => {
     setSelectedInvoice(invoice);
@@ -411,6 +444,10 @@ const InvoicesPage = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('estatus', statusFilter);
       if (areaFilter) params.append('area', areaFilter);
+      if (montoMin) params.append('monto_min', montoMin);
+      if (montoMax) params.append('monto_max', montoMax);
+      if (fechaDesde) params.append('fecha_desde', fechaDesde);
+      if (fechaHasta) params.append('fecha_hasta', fechaHasta);
       const response = await axios.get(`${API_URL}/api/invoices/export/excel?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
@@ -448,59 +485,115 @@ const InvoicesPage = () => {
       {/* Filters */}
       <Card className="bg-white border border-zinc-200">
         <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-              <Input
-                placeholder="Buscar por proveedor, folio o descripción..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="invoice-search-input"
-              />
-            </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <Input
+                  placeholder="Buscar por proveedor, folio o descripción..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                  className="pl-10"
+                  data-testid="invoice-search-input"
+                />
+              </div>
             
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48" data-testid="status-filter-select">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Estatus" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Capturada">Capturada</SelectItem>
-                <SelectItem value="En revisión">En revisión</SelectItem>
-                <SelectItem value="Programada">Programada</SelectItem>
-                <SelectItem value="Pagada">Pagada</SelectItem>
-                <SelectItem value="Rechazada">Rechazada</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-full md:w-48" data-testid="status-filter-select">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Estatus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Capturada">Capturada</SelectItem>
+                  <SelectItem value="En revisión">En revisión</SelectItem>
+                  <SelectItem value="Programada">Programada</SelectItem>
+                  <SelectItem value="Pagada">Pagada</SelectItem>
+                  <SelectItem value="Rechazada">Rechazada</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={areaFilter} onValueChange={setAreaFilter}>
-              <SelectTrigger className="w-full md:w-48" data-testid="area-filter-select">
-                <SelectValue placeholder="Área" />
-              </SelectTrigger>
-              <SelectContent>
-                {areas.map((area) => (
-                  <SelectItem key={area.id} value={area.id}>
-                    {area.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-auto"
-              onClick={handleExportExcel}
-              disabled={exporting}
-              data-testid="export-excel-btn"
-            >
-              {exporting ? 'Exportando...' : 'Exportar Excel'}
-            </Button>
+              <Select value={areaFilter} onValueChange={(v) => { setAreaFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-full md:w-48" data-testid="area-filter-select">
+                  <SelectValue placeholder="Área" />
+                </SelectTrigger>
+                <SelectContent>
+                  {areas.map((area) => (
+                    <SelectItem key={area.id} value={area.id}>
+                      {area.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {(searchTerm || statusFilter || areaFilter) && (
-              <Button variant="ghost" onClick={clearFilters} className="px-3">
-                <X className="w-4 h-4" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? 'border-red-300 text-red-600' : ''}
+              >
+                <SlidersHorizontal className="w-4 h-4 mr-1" />
+                Filtros
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                onClick={handleExportExcel}
+                disabled={exporting}
+                data-testid="export-excel-btn"
+              >
+                {exporting ? 'Exportando...' : 'Exportar Excel'}
+              </Button>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearFilters} className="px-3">
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-zinc-100">
+                <div>
+                  <Label className="text-xs text-zinc-500 mb-1 block">Monto mínimo</Label>
+                  <Input
+                    type="number"
+                    placeholder="$0"
+                    value={montoMin}
+                    onChange={(e) => { setMontoMin(e.target.value); setPage(1); }}
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-zinc-500 mb-1 block">Monto máximo</Label>
+                  <Input
+                    type="number"
+                    placeholder="$999,999"
+                    value={montoMax}
+                    onChange={(e) => { setMontoMax(e.target.value); setPage(1); }}
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-zinc-500 mb-1 block">Vencimiento desde</Label>
+                  <Input
+                    type="date"
+                    value={fechaDesde}
+                    onChange={(e) => { setFechaDesde(e.target.value); setPage(1); }}
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-zinc-500 mb-1 block">Vencimiento hasta</Label>
+                  <Input
+                    type="date"
+                    value={fechaHasta}
+                    onChange={(e) => { setFechaHasta(e.target.value); setPage(1); }}
+                    className="h-9"
+                  />
+                </div>
+              </div>
             )}
           </div>
         </CardContent>
@@ -513,7 +606,7 @@ const InvoicesPage = () => {
             <History className="w-5 h-5 text-red-600" />
             Registro de Facturas
             <Badge variant="secondary" className="ml-2 font-mono">
-              {invoices.length}
+              {totalInvoices}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -577,6 +670,53 @@ const InvoicesPage = () => {
               </Table>
             </div>
           )}        </CardContent>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100">
+            <p className="text-sm text-zinc-500">
+              Página {page} de {totalPages} ({totalInvoices} registros)
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="px-3 text-sm font-medium">{page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages}
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Invoice Detail Dialog */}

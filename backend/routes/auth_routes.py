@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 import logging
 
-from backend.schemas.auth_schemas import LoginRequest, TokenResponse, UserResponse
-from backend.services.auth_service import verify_password, create_token, get_current_user
+from backend.schemas.auth_schemas import LoginRequest, TokenResponse, UserResponse, RefreshRequest
+from backend.services.auth_service import verify_password, create_token, create_refresh_token, verify_refresh_token, get_current_user
 from backend.core.rate_limiter import check_rate_limit, reset_rate_limit
 from backend.db.session import get_db
 from backend.models.user import User
@@ -46,6 +46,7 @@ def login(request: LoginRequest, raw_request: Request, db: Session = Depends(get
     reset_rate_limit(client_ip)
 
     token = create_token(user.id, user.email, user.rol)
+    refresh = create_refresh_token(user.id)
     logger.info("Login exitoso: %s (%s)", request.email, user.rol)
 
     area_nombre = None
@@ -55,6 +56,7 @@ def login(request: LoginRequest, raw_request: Request, db: Session = Depends(get
 
     return TokenResponse(
         access_token=token,
+        refresh_token=refresh,
         user=UserResponse(
             id=user.id,
             email=user.email,
@@ -86,3 +88,24 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
         activo=user.activo,
         created_at=user.created_at.isoformat(),
     )
+
+
+@router.post("/refresh")
+def refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
+    """Obtener nuevos tokens usando un refresh token válido."""
+    user_id = verify_refresh_token(payload.refresh_token)
+
+    user: User | None = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+    if not user.activo:
+        raise HTTPException(status_code=401, detail="Usuario desactivado")
+
+    new_access = create_token(user.id, user.email, user.rol)
+    new_refresh = create_refresh_token(user.id)
+
+    return {
+        "access_token": new_access,
+        "refresh_token": new_refresh,
+        "token_type": "bearer",
+    }

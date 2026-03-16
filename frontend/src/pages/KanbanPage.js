@@ -319,10 +319,12 @@ const KanbanPage = () => {
     }
 
     try {
-      const params = searchTerm ? `?search=${searchTerm}` : '';
+      const params = searchTerm ? `?search=${searchTerm}&limit=100` : '?limit=100';
       const response = await axios.get(`${API_URL}/api/invoices${params}`, getAuthHeader());
-      setInvoices(response.data);
-      writeApiCache(cacheKey, response.data);
+      const data = response.data;
+      const items = Array.isArray(data) ? data : data.items || [];
+      setInvoices(items);
+      writeApiCache(cacheKey, items);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       if (!hasCachedInvoices) {

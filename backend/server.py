@@ -170,6 +170,7 @@ from backend.routes.dashboard_routes import router as dashboard_router
 from backend.routes.audit_routes import router as audit_router
 from backend.routes.system_routes import router as system_router
 from backend.routes.seed_routes import router as seed_router
+from backend.routes.notification_routes import router as notification_router
 
 app.include_router(auth_router)
 app.include_router(user_router)
@@ -179,6 +180,7 @@ app.include_router(dashboard_router)
 app.include_router(audit_router)
 app.include_router(system_router)
 app.include_router(seed_router)
+app.include_router(notification_router)
 
 # ---------------------------------------------------------------------------
 # Frontend estático + SPA fallback

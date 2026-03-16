@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import NotificationBell from './NotificationBell';
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -132,7 +133,10 @@ const Layout = () => {
 
             <div className="flex-1 lg:flex-none" />
 
-            <DropdownMenu>
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+
+              <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2" data-testid="user-menu-btn">
                   <Avatar className="h-8 w-8 bg-red-600">
@@ -157,6 +161,7 @@ const Layout = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           </div>
         </header>
 

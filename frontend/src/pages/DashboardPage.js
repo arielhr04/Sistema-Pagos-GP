@@ -273,8 +273,10 @@ const DashboardPage = () => {
     }
 
     try {
-      const response = await axios.get(`${API_URL}/api/invoices`, getAuthHeader());
-      const latestInvoices = response.data.slice(0, 5);
+      const response = await axios.get(`${API_URL}/api/invoices?limit=5`, getAuthHeader());
+      const data = response.data;
+      const items = Array.isArray(data) ? data : data.items || [];
+      const latestInvoices = items.slice(0, 5);
       setMyInvoices(latestInvoices);
       writeApiCache(cacheKey, latestInvoices);
     } catch (error) {

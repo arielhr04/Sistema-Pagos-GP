@@ -22,5 +22,13 @@ if not JWT_SECRET:
     JWT_SECRET = "dev-only-secret-DO-NOT-USE-IN-PROD"
     logger.warning("JWT_SECRET no configurado — usando secreto de desarrollo. NO usar en producción.")
 
+# Refresh token secret (distinto al access token)
+REFRESH_SECRET = os.environ.get("REFRESH_SECRET")
+if not REFRESH_SECRET:
+    if IS_PRODUCTION:
+        raise RuntimeError("REFRESH_SECRET es obligatorio en producción.")
+    REFRESH_SECRET = "dev-refresh-secret-DO-NOT-USE-IN-PROD"
+    logger.warning("REFRESH_SECRET no configurado — usando secreto de desarrollo.")
+
 # CORS: orígenes permitidos (vacío = solo mismo origen)
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "")

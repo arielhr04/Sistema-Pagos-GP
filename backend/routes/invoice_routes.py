@@ -111,11 +111,17 @@ def create_invoice(
         created_by_nombre=current_user.nombre,
     )
 
-@router.get("/invoices", response_model=List[InvoiceResponse])
+@router.get("/invoices")
 def get_invoices(
     estatus: Optional[str] = None,
     area: Optional[str] = None,
     search: Optional[str] = None,
+    monto_min: Optional[float] = Query(None, description="Monto mínimo"),
+    monto_max: Optional[float] = Query(None, description="Monto máximo"),
+    fecha_desde: Optional[str] = Query(None, description="Fecha vencimiento desde (YYYY-MM-DD)"),
+    fecha_hasta: Optional[str] = Query(None, description="Fecha vencimiento hasta (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    limit: int = Query(20, ge=1, le=100, description="Registros por página"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -134,11 +140,25 @@ def get_invoices(
             | Invoice.folio_fiscal.ilike(pattern)
             | Invoice.descripcion_factura.ilike(pattern)
         )
+    if monto_min is not None:
+        query = query.filter(Invoice.monto >= monto_min)
+    if monto_max is not None:
+        query = query.filter(Invoice.monto <= monto_max)
+    if fecha_desde:
+        query = query.filter(Invoice.fecha_vencimiento >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Invoice.fecha_vencimiento <= fecha_hasta)
 
-    invoices = query.order_by(Invoice.created_at.desc()).limit(200).all()
+    # Total para paginación
+    total = query.count()
+    total_pages = max(1, (total + limit - 1) // limit)
 
-    areas = {a.id: a.nombre for a in db.query(Area).limit(50).all()}
-    users = {u.id: u.nombre for u in db.query(User).limit(100).all()}
+    # Paginación
+    offset = (page - 1) * limit
+    invoices = query.order_by(Invoice.created_at.desc()).offset(offset).limit(limit).all()
+
+    areas = {a.id: a.nombre for a in db.query(Area).all()}
+    users = {u.id: u.nombre for u in db.query(User).all()}
 
     review_dates = get_treasury_review_map(db, [inv.id for inv in invoices])
     proof_invoice_ids = get_invoice_document_presence_map(
@@ -147,7 +167,7 @@ def get_invoices(
         DOC_TYPE_PAYMENT_PROOF,
     )
 
-    return [
+    items = [
         build_invoice_response(
             inv,
             area_nombre=areas.get(inv.area_procedencia),
@@ -157,6 +177,14 @@ def get_invoices(
         )
         for inv in invoices
     ]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
 def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -411,6 +439,10 @@ def export_invoices_excel(
     estatus: Optional[str] = None,
     area: Optional[str] = None,
     search: Optional[str] = None,
+    monto_min: Optional[float] = None,
+    monto_max: Optional[float] = None,
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -429,6 +461,14 @@ def export_invoices_excel(
             | Invoice.folio_fiscal.ilike(pattern)
             | Invoice.descripcion_factura.ilike(pattern)
         )
+    if monto_min is not None:
+        query = query.filter(Invoice.monto >= monto_min)
+    if monto_max is not None:
+        query = query.filter(Invoice.monto <= monto_max)
+    if fecha_desde:
+        query = query.filter(Invoice.fecha_vencimiento >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Invoice.fecha_vencimiento <= fecha_hasta)
     invoices = query.order_by(Invoice.created_at.desc()).all()
     wb = Workbook()
     ws = wb.active
