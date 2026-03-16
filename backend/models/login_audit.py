@@ -11,10 +11,10 @@ def generate_uuid() -> str:
 
 
 class LoginAudit(Base):
-    __tablename__ = "TESORERIAPP_GP_LOGIN_AUDIT"
+    __tablename__ = "tesoreriapp_gp_login_audit"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    usuario_id = Column(String(36), ForeignKey("TESORERIAPP_GP_USERS.id"), nullable=True)
+    usuario_id = Column(String(36), ForeignKey("tesoreriapp_gp_users.id"), nullable=True)
     email_intentado = Column(String(255), nullable=True)  # Para failed login attempts
     evento_tipo = Column(String(50), nullable=False)  # login_exitoso, login_fallido, logout, cambio_password
     razon = Column(String(255), nullable=True)  # contraseña incorrecta, email no existe, etc.
