@@ -115,6 +115,7 @@ def create_invoice(
 def get_invoices(
     estatus: Optional[str] = None,
     area: Optional[str] = None,
+    created_by: Optional[str] = None,
     search: Optional[str] = None,
     monto_min: Optional[float] = Query(None, description="Monto mínimo"),
     monto_max: Optional[float] = Query(None, description="Monto máximo"),
@@ -133,6 +134,8 @@ def get_invoices(
         query = query.filter(Invoice.estatus == estatus)
     if area:
         query = query.filter(Invoice.area_procedencia == area)
+    if created_by:
+        query = query.filter(Invoice.created_by == created_by)
     if search:
         pattern = f"%{search}%"
         query = query.filter(
@@ -438,6 +441,7 @@ def download_payment_proof(
 def export_invoices_excel(
     estatus: Optional[str] = None,
     area: Optional[str] = None,
+    created_by: Optional[str] = None,
     search: Optional[str] = None,
     monto_min: Optional[float] = None,
     monto_max: Optional[float] = None,
@@ -454,6 +458,8 @@ def export_invoices_excel(
         query = query.filter(Invoice.estatus == estatus)
     if area:
         query = query.filter(Invoice.area_procedencia == area)
+    if created_by:
+        query = query.filter(Invoice.created_by == created_by)
     if search:
         pattern = f"%{search}%"
         query = query.filter(

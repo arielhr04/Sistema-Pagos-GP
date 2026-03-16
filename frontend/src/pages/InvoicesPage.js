@@ -69,10 +69,12 @@ const InvoicesPage = () => {
   const { getAuthHeader, token, user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [areas, setAreas] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
+  const [usuarioFilter, setUsuarioFilter] = useState('');
   const [montoMin, setMontoMin] = useState('');
   const [montoMax, setMontoMax] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
@@ -112,6 +114,7 @@ const InvoicesPage = () => {
       searchTerm || 'all',
       statusFilter || 'all',
       areaFilter || 'all',
+      usuarioFilter || 'all',
       String(page)
     );
     const cachedData = readApiCache(cacheKey, CACHE_TTL_INVOICES_MS);
@@ -129,6 +132,7 @@ const InvoicesPage = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('estatus', statusFilter);
       if (areaFilter) params.append('area', areaFilter);
+      if (usuarioFilter) params.append('created_by', usuarioFilter);
       if (montoMin) params.append('monto_min', montoMin);
       if (montoMax) params.append('monto_max', montoMax);
       if (fechaDesde) params.append('fecha_desde', fechaDesde);
@@ -154,7 +158,7 @@ const InvoicesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, statusFilter, areaFilter, montoMin, montoMax, fechaDesde, fechaHasta, page, getAuthHeader, user?.id, user?.email]);
+  }, [searchTerm, statusFilter, areaFilter, usuarioFilter, montoMin, montoMax, fechaDesde, fechaHasta, page, getAuthHeader, user?.id, user?.email]);
 
   const fetchAreas = useCallback(async () => {
     const areasCacheKey = buildCacheKey('areas');
@@ -177,9 +181,31 @@ const InvoicesPage = () => {
     }
   }, [getAuthHeader]);
 
+  const fetchUsuarios = useCallback(async () => {
+    const usuariosCacheKey = buildCacheKey('usuarios-list');
+    const cachedUsuarios = readApiCache(usuariosCacheKey, CACHE_TTL_AREAS_MS);
+    const hasCachedUsuarios = Array.isArray(cachedUsuarios);
+
+    if (hasCachedUsuarios) {
+      setUsuarios(cachedUsuarios);
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/api/users`, getAuthHeader());
+      setUsuarios(response.data);
+      writeApiCache(usuariosCacheKey, response.data);
+    } catch (error) {
+      console.error('Error fetching usuarios:', error);
+      if (!hasCachedUsuarios) {
+        toast.error('Error al cargar usuarios');
+      }
+    }
+  }, [getAuthHeader]);
+
   useEffect(() => {
     fetchAreas();
-  }, [fetchAreas]);
+    fetchUsuarios();
+  }, [fetchAreas, fetchUsuarios]);
 
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
@@ -192,6 +218,7 @@ const InvoicesPage = () => {
     setSearchTerm('');
     setStatusFilter('');
     setAreaFilter('');
+    setUsuarioFilter('');
     setMontoMin('');
     setMontoMax('');
     setFechaDesde('');
@@ -199,7 +226,7 @@ const InvoicesPage = () => {
     setPage(1);
   };
 
-  const hasActiveFilters = searchTerm || statusFilter || areaFilter || montoMin || montoMax || fechaDesde || fechaHasta;
+  const hasActiveFilters = searchTerm || statusFilter || areaFilter || usuarioFilter || montoMin || montoMax || fechaDesde || fechaHasta;
 
   const handleInvoiceClick = async (invoice) => {
     setSelectedInvoice(invoice);
@@ -444,6 +471,7 @@ const InvoicesPage = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('estatus', statusFilter);
       if (areaFilter) params.append('area', areaFilter);
+      if (usuarioFilter) params.append('created_by', usuarioFilter);
       if (montoMin) params.append('monto_min', montoMin);
       if (montoMax) params.append('monto_max', montoMax);
       if (fechaDesde) params.append('fecha_desde', fechaDesde);
@@ -556,7 +584,7 @@ const InvoicesPage = () => {
             </div>
 
             {showAdvancedFilters && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-zinc-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 pt-3 border-t border-zinc-100">
                 <div>
                   <Label className="text-xs text-zinc-500 mb-1 block">Monto mínimo</Label>
                   <Input
@@ -595,6 +623,24 @@ const InvoicesPage = () => {
                     className="h-9"
                   />
                 </div>
+                {(user?.rol === 'Administrador' || user?.rol === 'Tesorero') && (
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1 block">Usuario creador</Label>
+                    <Select value={usuarioFilter} onValueChange={(val) => { setUsuarioFilter(val); setPage(1); }}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todos los usuarios" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Todos los usuarios</SelectItem>
+                        {usuarios.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
           </div>
