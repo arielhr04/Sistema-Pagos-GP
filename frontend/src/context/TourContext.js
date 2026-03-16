@@ -89,12 +89,7 @@ const STEPS_TESORERO = [
   },
   {
     target: '[data-tour="kanban-summary"]',
-    content: 'Estos chips muestran cuántas facturas hay por columna. Clic para expandir o colapsar.',
-    page: '/kanban',
-  },
-  {
-    target: '[data-tour="kanban-columns"]',
-    content: 'Arrastra las tarjetas entre columnas para cambiar su estatus. El cambio se guarda automáticamente.',
+    content: 'Estos chips muestran cuántas facturas hay por columna. Las columnas se cargan automáticamente: puedes arrastrar facturas entre ellas para cambiar su estatus.',
     page: '/kanban',
   },
   {
