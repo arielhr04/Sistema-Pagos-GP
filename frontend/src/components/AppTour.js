@@ -150,8 +150,12 @@ const AppTour = () => {
             !location.pathname.startsWith(nextStep.page)
           ) {
             navigate(nextStep.page);
-            // Small delay to let the page render
-            setTimeout(() => setStepIndex(nextIndex), 400);
+            // Pausar Joyride, esperar a que la página renderice, y luego reanudar
+            setRun(false);
+            setTimeout(() => {
+              setStepIndex(nextIndex);
+              setRun(true);
+            }, 600);
           } else {
             setStepIndex(nextIndex);
           }
