@@ -192,9 +192,8 @@ export const TourProvider = ({ children }) => {
   const startTour = useCallback(async () => {
     setTourKey((k) => k + 1);
     setTourActive(true);
-    setDemoModeState(true);
 
-    // Precargar datos mock en paralelo
+    // Precargar datos mock en paralelo PRIMERO
     try {
       const [invoices, areas, users, stats, auditLogs, loginLogs] = await Promise.all([
         mockDataService.getMockInvoices(),
@@ -205,6 +204,7 @@ export const TourProvider = ({ children }) => {
         mockDataService.getMockLoginLogs(),
       ]);
 
+      // Establecer datos primero
       setDemoData({
         invoices,
         areas,
@@ -213,8 +213,12 @@ export const TourProvider = ({ children }) => {
         auditLogs,
         loginLogs,
       });
+
+      // LUEGO activar demo mode (así cuando KanbanPage vea demoMode=true, demoData ya está listo)
+      setDemoModeState(true);
     } catch (err) {
       console.error('Error preloading demo data:', err);
+      setDemoModeState(true); // Activar de todas formas pero sin datos
     }
   }, []);
 

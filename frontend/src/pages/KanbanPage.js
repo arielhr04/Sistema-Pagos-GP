@@ -453,13 +453,16 @@ const KanbanPage = () => {
 
   // Fetch all columns (initial load or search change)
   const fetchAllColumns = useCallback(async () => {
-    setLoading(true);
+    // En modo demo, no mostrar loading spinner (los datos están listos al instante)
+    if (!demoMode) {
+      setLoading(true);
+    }
     try {
       await Promise.all(COLUMNS.map((col) => fetchColumn(col.id, 1, false)));
     } finally {
       setLoading(false);
     }
-  }, [fetchColumn]);
+  }, [fetchColumn, demoMode]);
 
   // Load more for a specific column
   const handleLoadMore = useCallback((status) => {
