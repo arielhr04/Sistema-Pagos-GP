@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -305,6 +306,7 @@ const KanbanColumn = ({ column, invoices, totalCount, onCardClick, onLoadMore, l
 
 const KanbanPage = () => {
   const { token, user, getAuthHeader } = useAuth();
+  const { demoMode, demoData } = useTour();
   // Per-column state: { [status]: { items: [], total: 0, page: 1, loading: false } }
   const [columnData, setColumnData] = useState(() => {
     const initial = {};
@@ -375,6 +377,41 @@ const KanbanPage = () => {
 
   // Fetch a single column's data (page 1 or append next page)
   const fetchColumn = useCallback(async (status, page = 1, append = false) => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.invoices) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        
+        const mockInvoices = demoData.invoices.items || [];
+        // Filtrar por estatus
+        const filteredInvoices = status 
+          ? mockInvoices.filter((inv) => inv.estatus === status)
+          : mockInvoices;
+        
+        const items = filteredInvoices.slice(0, COLUMN_PAGE_SIZE);
+        const total = filteredInvoices.length;
+
+        setColumnData((prev) => ({
+          ...prev,
+          [status]: {
+            items: append ? [...prev[status].items, ...items] : items,
+            total,
+            page,
+            loading: false,
+          },
+        }));
+        return;
+      } catch (error) {
+        console.error(`Error loading demo column ${status}:`, error);
+        setColumnData((prev) => ({
+          ...prev,
+          [status]: { ...prev[status], loading: false },
+        }));
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     setColumnData((prev) => ({
       ...prev,
       [status]: { ...prev[status], loading: true },
@@ -412,7 +449,7 @@ const KanbanPage = () => {
         [status]: { ...prev[status], loading: false },
       }));
     }
-  }, [searchTerm, getAuthHeader]);
+  }, [searchTerm, getAuthHeader, demoMode, demoData]);
 
   // Fetch all columns (initial load or search change)
   const fetchAllColumns = useCallback(async () => {
@@ -447,6 +484,13 @@ const KanbanPage = () => {
   };
 
   const handleDragEnd = async (event) => {
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes arrastrar facturas durante el tour de demostración');
+      setActiveId(null);
+      return;
+    }
+
     const { active, over } = event;
     setActiveId(null);
 

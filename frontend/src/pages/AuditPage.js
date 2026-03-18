@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -47,11 +48,30 @@ const LOGIN_EVENT_LABELS = {
 
 const AuditPage = () => {
   const { getAuthHeader, user } = useAuth();
+  const { demoMode, demoData } = useTour();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [logType, setLogType] = useState('facturas');
 
   const fetchLogs = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const mockLogs = logType === 'facturas' 
+          ? demoData.auditLogs || []
+          : demoData.loginLogs || [];
+        setLogs(mockLogs);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error(`Error loading demo logs:`, error);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     const cacheKey = buildCacheKey(`audit-logs-${logType}`, user?.id || user?.email || 'anon');
     const cachedLogs = readApiCache(cacheKey, CACHE_TTL_AUDIT_MS);
     const hasCachedLogs = Array.isArray(cachedLogs);
@@ -77,7 +97,7 @@ const AuditPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader, user?.id, user?.email, logType]);
+  }, [getAuthHeader, user?.id, user?.email, logType, demoMode, demoData]);
 
   useEffect(() => {
     fetchLogs();

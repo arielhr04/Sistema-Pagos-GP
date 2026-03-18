@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -148,6 +149,7 @@ const InvoiceInfoGrid = ({ invoice, formatCurrency, showStatus = false, statusSt
 
 const DashboardPage = () => {
   const { user, token, getAuthHeader } = useAuth();
+  const { demoMode, demoData } = useTour();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [areas, setAreas] = useState([]);
@@ -237,6 +239,22 @@ const DashboardPage = () => {
   }, [getAuthHeader, user?.rol]);
 
   const fetchAreas = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.areas) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        setAreas(demoData.areas.items || []);
+        if (user?.area_id && demoData.areas.items && demoData.areas.items.length > 0) {
+          setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
+        }
+        return;
+      } catch (error) {
+        console.error('Error loading demo areas:', error);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     const areasCacheKey = buildCacheKey('areas');
     const cachedAreas = readApiCache(areasCacheKey, CACHE_TTL_AREAS_MS);
     const hasCachedAreas = Array.isArray(cachedAreas);
@@ -262,9 +280,25 @@ const DashboardPage = () => {
         toast.error(`Error al cargar áreas: ${error.response?.data?.detail || error.message}`);
       }
     }
-  }, [getAuthHeader, user?.area_id]);
+  }, [getAuthHeader, user?.area_id, demoMode, demoData]);
 
   const fetchMyInvoices = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.invoices) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const mockInvoices = demoData.invoices.items || [];
+        setMyInvoices(mockInvoices.slice(0, 5));
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error('Error loading demo invoices:', error);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     const cacheKey = buildCacheKey('dashboard-my-invoices', user?.id || user?.email || 'anon');
     const cachedInvoices = readApiCache(cacheKey, CACHE_TTL_MY_INVOICES_MS);
 
@@ -283,9 +317,15 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Error fetching invoices:', error);
     }
-  }, [getAuthHeader, user?.id, user?.email]);
+  }, [getAuthHeader, user?.id, user?.email, demoMode, demoData]);
 
   const handleInvoiceClick = async (invoice) => {
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes interactuar con facturas durante el tour de demostración');
+      return;
+    }
+
     setSelectedInvoice(invoice);
     setPendingStatus(invoice.estatus);
     setPaymentDate(parseDateOnly(invoice.fecha_pago_real));
@@ -342,6 +382,12 @@ const DashboardPage = () => {
   };
 
   const handleConfirmInvoicePdfChange = async () => {
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes reemplazar PDFs durante el tour de demostración');
+      return;
+    }
+
     if (!selectedInvoice || !invoiceReplacementPdfFile) return;
 
     if (selectedInvoice.estatus === 'Pagada') {
@@ -368,6 +414,12 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Error replacing invoice PDF:', error);
       toast.error(error.response?.data?.detail || 'Error al cambiar el PDF de factura');
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes modificar facturas durante el tour de demostración');
+      return;
+    }
+
     } finally {
       setUpdating(false);
     }
@@ -493,6 +545,21 @@ const DashboardPage = () => {
   const fetchData = useCallback(async () => {
     // Carga inicial con cache + revalidación
     if (canViewStats) {
+      // Si estamos en modo tour, usar datos mock
+      if (demoMode && demoData?.stats) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          setStats(demoData.stats);
+          setLoading(false);
+          return;
+        } catch (error) {
+          console.error('Error loading demo stats:', error);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Modo normal: usar API
       const statsCacheKey = buildCacheKey('dashboard-stats', user?.id || user?.email || 'anon');
       const cachedStats = readApiCache(statsCacheKey, CACHE_TTL_STATS_MS);
       const hasCachedStats = Boolean(cachedStats);
@@ -519,7 +586,7 @@ const DashboardPage = () => {
     }
 
     setLoading(false);
-  }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices, user?.id, user?.email]);
+  }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices, user?.id, user?.email, demoMode, demoData]);
 
   useEffect(() => {
     fetchData();
@@ -587,6 +654,12 @@ const DashboardPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes crear facturas durante el tour de demostración');
+      return;
+    }
     
     if (!pdfFile) {
       toast.error('Debe adjuntar un archivo PDF');

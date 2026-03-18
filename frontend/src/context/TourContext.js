@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
+import mockDataService from '../services/mockDataService';
+import apiClient from '../lib/apiClient';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -175,18 +177,52 @@ export const TourProvider = ({ children }) => {
   const { user, token } = useAuth();
   const [tourActive, setTourActive] = useState(false);
   const [tourKey, setTourKey] = useState(0); // forces Joyride remount
+  const [demoMode, setDemoModeState] = useState(false); // Demo mode para datos mock
+  const [demoData, setDemoData] = useState(null); // Cache de datos demo
 
   const steps = ROLE_STEPS[user?.rol] || [];
 
   const needsTour = user && !user.tour_completed;
 
-  const startTour = useCallback(() => {
+  // Sincronizar demo mode con API client
+  useEffect(() => {
+    apiClient.setDemoMode(demoMode, demoData);
+  }, [demoMode, demoData]);
+
+  const startTour = useCallback(async () => {
     setTourKey((k) => k + 1);
     setTourActive(true);
+    setDemoModeState(true);
+
+    // Precargar datos mock en paralelo
+    try {
+      const [invoices, areas, users, stats, auditLogs, loginLogs] = await Promise.all([
+        mockDataService.getMockInvoices(),
+        mockDataService.getMockAreas(),
+        mockDataService.getMockUsers(),
+        mockDataService.getMockDashboardStats(),
+        mockDataService.getMockAuditLogs(),
+        mockDataService.getMockLoginLogs(),
+      ]);
+
+      setDemoData({
+        invoices,
+        areas,
+        users,
+        stats,
+        auditLogs,
+        loginLogs,
+      });
+    } catch (err) {
+      console.error('Error preloading demo data:', err);
+    }
   }, []);
 
   const completeTour = useCallback(async () => {
     setTourActive(false);
+    setDemoModeState(false);
+    setDemoData(null);
+
     if (!token) return;
     try {
       await axios.post(
@@ -203,6 +239,8 @@ export const TourProvider = ({ children }) => {
 
   const skipTour = useCallback(() => {
     setTourActive(false);
+    setDemoModeState(false);
+    setDemoData(null);
   }, []);
 
   return (
@@ -215,6 +253,8 @@ export const TourProvider = ({ children }) => {
         startTour,
         completeTour,
         skipTour,
+        demoMode,
+        demoData,
       }}
     >
       {children}

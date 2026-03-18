@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -67,6 +68,7 @@ const STATUS_STYLES = {
 
 const InvoicesPage = () => {
   const { getAuthHeader, token, user } = useAuth();
+  const { demoMode, demoData } = useTour();
   const [invoices, setInvoices] = useState([]);
   const [areas, setAreas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -108,6 +110,25 @@ const InvoicesPage = () => {
   );
 
   const fetchInvoices = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.invoices) {
+      try {
+        // Simular latencia mínima para que la UX se sienta real
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const mockInvoices = demoData.invoices.items || [];
+        setInvoices(mockInvoices);
+        setTotalPages(demoData.invoices.total_pages || 1);
+        setTotalInvoices(demoData.invoices.total || 0);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error('Error loading demo invoices:', error);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     const cacheKey = buildCacheKey(
       'invoices',
       user?.id || user?.email || 'anon',
@@ -158,9 +179,22 @@ const InvoicesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, statusFilter, areaFilter, usuarioFilter, montoMin, montoMax, fechaDesde, fechaHasta, page, getAuthHeader, user?.id, user?.email]);
+  }, [searchTerm, statusFilter, areaFilter, usuarioFilter, montoMin, montoMax, fechaDesde, fechaHasta, page, getAuthHeader, user?.id, user?.email, demoMode, demoData]);
 
   const fetchAreas = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.areas) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        setAreas(demoData.areas.items || []);
+        return;
+      } catch (error) {
+        console.error('Error loading demo areas:', error);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     const areasCacheKey = buildCacheKey('areas');
     const cachedAreas = readApiCache(areasCacheKey, CACHE_TTL_AREAS_MS);
     const hasCachedAreas = Array.isArray(cachedAreas);
@@ -179,9 +213,22 @@ const InvoicesPage = () => {
         toast.error('Error al cargar áreas');
       }
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, demoMode, demoData]);
 
   const fetchUsuarios = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.users) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        setUsuarios(demoData.users.items || []);
+        return;
+      } catch (error) {
+        console.error('Error loading demo users:', error);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     const usuariosCacheKey = buildCacheKey('usuarios-list');
     const cachedUsuarios = readApiCache(usuariosCacheKey, CACHE_TTL_AREAS_MS);
     const hasCachedUsuarios = Array.isArray(cachedUsuarios);
@@ -200,7 +247,7 @@ const InvoicesPage = () => {
         toast.error('Error al cargar usuarios');
       }
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, demoMode, demoData]);
 
   useEffect(() => {
     fetchAreas();
@@ -229,6 +276,12 @@ const InvoicesPage = () => {
   const hasActiveFilters = searchTerm || statusFilter || areaFilter || usuarioFilter || montoMin || montoMax || fechaDesde || fechaHasta;
 
   const handleInvoiceClick = async (invoice) => {
+    // Bloquear acciones en modo tour
+    if (demoMode) {
+      toast.error('No puedes interactuar con facturas durante el tour de demostración');
+      return;
+    }
+
     setSelectedInvoice(invoice);
     setPendingStatus(invoice.estatus);
     setPaymentDate(parseDateOnly(invoice.fecha_pago_real));
@@ -277,6 +330,12 @@ const InvoicesPage = () => {
   };
 
   const handleConfirmChanges = async () => {
+    // Bloquear cambios en modo tour
+    if (demoMode) {
+      toast.error('No puedes modificar facturas durante el tour de demostración');
+      return;
+    }
+
     if (!selectedInvoice) return;
 
     const targetStatus = pendingStatus || selectedInvoice.estatus;
@@ -375,6 +434,12 @@ const InvoicesPage = () => {
   };
 
   const handleConfirmInvoicePdfChange = async () => {
+    // Bloquear cambios en modo tour
+    if (demoMode) {
+      toast.error('No puedes reemplazar PDFs durante el tour de demostración');
+      return;
+    }
+
     if (!invoiceReplacementPdfFile || !selectedInvoice) return;
     setUpdating(true);
     try {

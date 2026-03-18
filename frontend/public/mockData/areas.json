@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440101",
+      "nombre": "Administración",
+      "descripcion": "Departamento de administración general"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440102",
+      "nombre": "Tecnología",
+      "descripcion": "Área de sistemas y tecnología de información"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440103",
+      "nombre": "Operaciones",
+      "descripcion": "Departamento de operaciones y logística"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440104",
+      "nombre": "Recursos Humanos",
+      "descripcion": "Área de gestión de personal"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440105",
+      "nombre": "Finanzas",
+      "descripcion": "Departamento de finanzas corporativas"
+    }
+  ],
+  "total": 5
+}

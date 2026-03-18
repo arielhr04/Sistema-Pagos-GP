@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
@@ -57,6 +58,7 @@ const ROLE_STYLES = {
 
 const UsersPage = () => {
   const { getAuthHeader, token } = useAuth();
+  const { demoMode, demoData } = useTour();
   const [users, setUsers] = useState([]);
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,22 @@ const UsersPage = () => {
   });
 
   const fetchUsers = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.users) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const usersData = demoData.users.items || [];
+        setUsers(usersData);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error('Error loading demo users:', error);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     try {
       const response = await axios.get(`${API_URL}/api/users`, getAuthHeader());
       const usersData = Array.isArray(response.data)
@@ -94,16 +112,29 @@ const UsersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, demoMode, demoData]);
 
   const fetchAreas = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.areas) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        setAreas(demoData.areas.items || []);
+        return;
+      } catch (error) {
+        console.error('Error loading demo areas:', error);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     try {
       const response = await axios.get(`${API_URL}/api/areas`, getAuthHeader());
       setAreas(response.data);
     } catch (error) {
       console.error('Error fetching areas:', error);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, demoMode, demoData]);
 
   useEffect(() => {
     fetchUsers();

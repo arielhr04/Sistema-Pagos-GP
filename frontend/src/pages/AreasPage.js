@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
@@ -34,6 +35,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const AreasPage = () => {
   const { getAuthHeader } = useAuth();
+  const { demoMode, demoData } = useTour();
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,7 +47,21 @@ const AreasPage = () => {
     descripcion: '',
   });
 
-  const fetchAreas = useCallback(async () => {
+  co// Si estamos en modo tour, usar datos mock
+    if (demoMode && demoData?.areas) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        setAreas(demoData.areas.items || []);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error('Error loading demo areas:', error);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Modo normal: usar API
     try {
       const response = await axios.get(`${API_URL}/api/areas`, getAuthHeader());
       setAreas(response.data);
@@ -53,8 +69,16 @@ const AreasPage = () => {
       console.error('Error fetching areas:', error);
       toast.error('Error al cargar áreas');
     } finally {
+
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes crear áreas durante el tour de demostración');
+      return;
+    }
+
       setLoading(false);
     }
+  }, [getAuthHeader, demoMode, demoData
   }, [getAuthHeader]);
 
   useEffect(() => {
@@ -62,6 +86,12 @@ const AreasPage = () => {
   }, [fetchAreas]);
 
   const filteredAreas = areas.filter((area) =>
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes eliminar áreas durante el tour de demostración');
+      return;
+    }
+
     area.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
 

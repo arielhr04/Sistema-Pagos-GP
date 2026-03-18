@@ -1,0 +1,59 @@
+{
+  "items": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440201",
+      "nombre": "Juan García",
+      "email": "juan@empresa.com",
+      "rol": "Usuario Área",
+      "area": "550e8400-e29b-41d4-a716-446655440101",
+      "area_nombre": "Administración",
+      "activo": true
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440202",
+      "nombre": "María López",
+      "email": "maria@empresa.com",
+      "rol": "Usuario Área",
+      "area": "550e8400-e29b-41d4-a716-446655440102",
+      "area_nombre": "Tecnología",
+      "activo": true
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440203",
+      "nombre": "Carlos Ruiz",
+      "email": "carlos@empresa.com",
+      "rol": "Usuario Área",
+      "area": "550e8400-e29b-41d4-a716-446655440103",
+      "area_nombre": "Operaciones",
+      "activo": true
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440204",
+      "nombre": "Ana Martínez",
+      "email": "ana@empresa.com",
+      "rol": "Usuario Área",
+      "area": "550e8400-e29b-41d4-a716-446655440104",
+      "area_nombre": "Recursos Humanos",
+      "activo": true
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440205",
+      "nombre": "Roberto Sánchez",
+      "email": "roberto@empresa.com",
+      "rol": "Tesorero",
+      "area": null,
+      "area_nombre": null,
+      "activo": true
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440206",
+      "nombre": "Laura Gómez",
+      "email": "laura@empresa.com",
+      "rol": "Administrador",
+      "area": null,
+      "area_nombre": null,
+      "activo": true
+    }
+  ],
+  "total": 6
+}
