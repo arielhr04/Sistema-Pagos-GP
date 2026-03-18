@@ -5,7 +5,7 @@
  */
 
 import axios from 'axios';
-import mockDataService from './mockDataService';
+import mockDataService from '../services/mockDataService';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 

@@ -47,7 +47,9 @@ const AreasPage = () => {
     descripcion: '',
   });
 
-  co// Si estamos en modo tour, usar datos mock
+  // Fetch areas con soporte para demo mode
+  const fetchAreas = useCallback(async () => {
+    // Si estamos en modo tour, usar datos mock
     if (demoMode && demoData?.areas) {
       try {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -69,34 +71,27 @@ const AreasPage = () => {
       console.error('Error fetching areas:', error);
       toast.error('Error al cargar áreas');
     } finally {
-
-    // Bloquear en modo tour
-    if (demoMode) {
-      toast.error('No puedes crear áreas durante el tour de demostración');
-      return;
-    }
-
       setLoading(false);
     }
-  }, [getAuthHeader, demoMode, demoData
-  }, [getAuthHeader]);
+  }, [getAuthHeader, demoMode, demoData]);
 
   useEffect(() => {
     fetchAreas();
   }, [fetchAreas]);
 
   const filteredAreas = areas.filter((area) =>
-    // Bloquear en modo tour
-    if (demoMode) {
-      toast.error('No puedes eliminar áreas durante el tour de demostración');
-      return;
-    }
-
     area.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes crear áreas durante el tour de demostración');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -114,6 +109,12 @@ const AreasPage = () => {
   };
 
   const handleDelete = async (areaId) => {
+    // Bloquear en modo tour
+    if (demoMode) {
+      toast.error('No puedes eliminar áreas durante el tour de demostración');
+      return;
+    }
+
     if (!window.confirm('¿Está seguro de eliminar esta área?')) return;
 
     try {
