@@ -74,15 +74,18 @@ const Layout = () => {
       {/* Sidebar */}
       <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-zinc-950 text-white transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Logo - ajustado para mobile */}
-          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-zinc-800 flex-shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
+          {/* Logo - mejorado */}
+          <div className="flex items-center justify-between px-4 sm:px-6 py-5 sm:py-6 border-b border-zinc-800 flex-shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
               <img 
                 src="/images/logo.png" 
                 alt="Logo" 
-                className="w-8 h-8 sm:w-10 sm:h-10 object-contain flex-shrink-0"
+                className="w-12 h-12 sm:w-10 sm:h-10 object-contain flex-shrink-0"
               />
-              <span className="hidden sm:inline font-semibold text-white text-sm">GP</span>
+              <div className="hidden sm:flex flex-col">
+                <span className="font-bold text-white text-sm sm:text-base">GP</span>
+                <span className="text-xs text-zinc-400 leading-tight">Pagos</span>
+              </div>
             </div>
             <button 
               className="lg:hidden text-zinc-400 hover:text-white p-1 flex-shrink-0"
