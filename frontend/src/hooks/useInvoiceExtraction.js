@@ -13,14 +13,25 @@ export const useInvoiceExtraction = () => {
   const [extractionError, setExtractionError] = useState(null);
 
   const extractFromPdf = useCallback(async (pdfFile) => {
-    if (!pdfFile) return;
+    if (!pdfFile) {
+      console.warn('❌ No hay archivo PDF para extraer');
+      return null;
+    }
 
     setIsExtracting(true);
     setExtractionError(null);
 
     try {
       // Usar OCR del backend
+      console.log('📄 Extrayendo datos del PDF usando OCR...');
       const data = await extractInvoiceDataViaOCR(pdfFile);
+      
+      if (!data) {
+        console.warn('⚠️ OCR retornó datos vacíos');
+        return null;
+      }
+      
+      console.log('🎯 Datos recibidos del OCR:', data);
       setExtractedData(data);
 
       // Calcular estado de cada campo
@@ -32,12 +43,15 @@ export const useInvoiceExtraction = () => {
         descripcion_factura: data.descripcion_factura ? 'filled' : 'empty',
       };
 
+      console.log('📋 Estado de extracción por campo:', status);
       setExtractionStatus(status);
 
+      console.log('✅ Retornando datos extraídos:', data);
       return data;
     } catch (error) {
-      console.error('Error en extracción OCR:', error);
-      setExtractionError(error.message || 'Error al procesar el PDF');
+      console.error('❌ Error en extracción OCR:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Error al procesar el PDF';
+      setExtractionError(errorMsg);
       return null;
     } finally {
       setIsExtracting(false);

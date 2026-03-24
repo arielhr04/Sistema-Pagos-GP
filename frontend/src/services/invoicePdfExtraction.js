@@ -22,6 +22,8 @@ export const extractInvoiceDataViaOCR = async (pdfFile) => {
     // Obtener token del localStorage (clave: 'token')
     const token = localStorage.getItem('token');
     
+    console.log('🔍 Iniciando extracción OCR del PDF:', pdfFile.name);
+    
     // Llamar al endpoint de OCR del backend
     const response = await axios.post(`${API_URL}/api/invoices/extract-ocr`, formData, {
       headers: {
@@ -30,10 +32,15 @@ export const extractInvoiceDataViaOCR = async (pdfFile) => {
       },
     });
     
+    console.log('📊 Respuesta del OCR:', response.data);
+    
     if (response.data && response.data.data) {
-      return response.data.data;
+      const extractedData = response.data.data;
+      console.log('✅ Datos extraídos:', extractedData);
+      return extractedData;
     }
     
+    console.warn('⚠️ Respuesta del OCR sin estructura de datos esperada');
     return {
       nombre_proveedor: null,
       monto: null,
@@ -42,7 +49,7 @@ export const extractInvoiceDataViaOCR = async (pdfFile) => {
       descripcion_factura: null,
     };
   } catch (error) {
-    console.error('Error en extracción OCR del backend:', error);
+    console.error('❌ Error en extracción OCR del backend:', error.response?.data || error.message);
     throw error;
   }
 };

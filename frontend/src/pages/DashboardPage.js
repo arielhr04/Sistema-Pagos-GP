@@ -12,6 +12,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import FormFieldWithExtraction from '../components/FormFieldWithExtraction';
+import { PdfOcrSection } from '../components/PdfOcrSection';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import { parseDateOnly } from '../lib/date';
@@ -599,24 +600,44 @@ const DashboardPage = () => {
   useEffect(() => {
     if (pdfFile) {
       // Intentar extraer datos del PDF
+      console.log('📋 Iniciando extracción del PDF:', pdfFile.name);
       extractFromPdf(pdfFile).then((data) => {
+        console.log('📨 Datos retornados por extractFromPdf:', data);
         if (data) {
+          console.log('🔄 Autocompletando formulario con datos extraídos...');
           // Autocompletar campos con datos extraídos
-          setFormData(prev => ({
-            ...prev,
-            nombre_proveedor: data.nombre_proveedor || prev.nombre_proveedor,
-            monto: data.monto || prev.monto,
-            folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
-            fecha_vencimiento: data.fecha_vencimiento 
-              ? new Date(data.fecha_vencimiento)
-              : prev.fecha_vencimiento,
-            descripcion_factura: data.descripcion_factura || prev.descripcion_factura,
-          }));
+          setFormData(prev => {
+            const updatedData = {
+              ...prev,
+              nombre_proveedor: data.nombre_proveedor || prev.nombre_proveedor,
+              monto: data.monto || prev.monto,
+              folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
+              fecha_vencimiento: data.fecha_vencimiento 
+                ? new Date(data.fecha_vencimiento)
+                : prev.fecha_vencimiento,
+              descripcion_factura: data.descripcion_factura || prev.descripcion_factura,
+            };
+            console.log('✅ FormData actualizado:', updatedData);
+            return updatedData;
+          });
 
           // Mostrar notificación
-          const filledCount = Object.values(data).filter(v => v).length;
+          const filledCount = [
+            data.nombre_proveedor,
+            data.monto,
+            data.folio_fiscal,
+            data.fecha_vencimiento,
+            data.descripcion_factura
+          ].filter(v => v).length;
+          
+          console.log(`📊 Campos completados: ${filledCount}`);
           toast.success(`✓ ${filledCount} campos completados automáticamente`);
+        } else {
+          console.warn('⚠️ No se obtuvieron datos del PDF');
+          toast.info('No se pudieron extraer datos del PDF. Completa los campos manualmente.');
         }
+      }).catch((err) => {
+        console.error('❌ Error en promise de extracción:', err);
       });
     }
   }, [pdfFile, extractFromPdf]);
@@ -759,53 +780,28 @@ const DashboardPage = () => {
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-                {/* Sección de PDF al inicio con indicación OCR */}
-                <div className="space-y-2 mb-2 sm:mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-2">
+                <div className="mb-2 sm:mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-2 mb-3">
                     <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <Label className="text-sm font-semibold text-blue-900">Archivo PDF * (OCR Automático)</Label>
                       <p className="text-xs text-blue-700 mt-1">Sube la factura y los datos se rellenarán automáticamente</p>
                     </div>
                   </div>
-                  <div 
-                    {...getInvoicePdfRootProps()}
-                    data-tour="upload-pdf"
-                    className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer mt-3 ${
-                      pdfFile ? 'border-green-500 bg-green-50' : 
-                      isInvoicePdfDragActive ? 'border-red-500 bg-red-50' : 
-                      'border-blue-300 hover:border-blue-500'
-                    }`}
-                  >
-                    <input {...getInvoicePdfInputProps()} data-testid="dashboard-pdf-input" />
-                    {pdfFile ? (
-                      <div className="flex items-center justify-center gap-2 text-green-700">
-                        <FileText className="w-6 h-6" />
-                        <span className="font-medium text-sm">{pdfFile.name}</span>
-                      </div>
-                    ) : (
-                      <div className="text-blue-600">
-                        <Upload className="w-6 h-6 mx-auto mb-1" />
-                        <p className="text-sm font-medium">Arrastra aquí el archivo PDF o haz clic para seleccionar</p>
-                      </div>
-                    )}
-                  </div>
-                  {pdfFile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
+                  <div data-tour="upload-pdf">
+                    <PdfOcrSection
+                      pdfFile={pdfFile}
+                      onPdfChange={(file) => setPdfFile(file)}
+                      isExtracting={isExtracting}
+                      extractionStatus={extractionStatus}
+                      extractedData={extractedData}
+                      onChangeFile={() => {
                         setPdfFile(null);
                         clearExtraction();
                       }}
-                    >
-                      Cambiar archivo
-                    </Button>
-                  )}
-                  {!pdfFile && (
-                    <p className="text-xs text-blue-600">* El archivo PDF es obligatorio para registrar la factura</p>
-                  )}
+                      required
+                      inputId="dashboard-pdf-input"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -1520,21 +1516,20 @@ const DashboardPage = () => {
                     rows={3}
                   />
                 </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>PDF de Factura *</Label>
-                  <div className="border-2 border-dashed border-zinc-300 rounded-lg p-6 text-center cursor-pointer hover:border-red-500 hover:bg-red-50 transition" {...getInvoicePdfRootProps()}>
-                    <input {...getInvoicePdfInputProps()} />
-                    <Upload className="w-8 h-8 mx-auto text-zinc-400 mb-2" />
-                    {pdfFile ? (
-                      <p className="text-sm text-green-600 font-medium">✓ {pdfFile.name}</p>
-                    ) : (
-                      <>
-                        <p className="text-sm text-zinc-600 font-medium">Arrastra el PDF aquí o haz clic para seleccionar</p>
-                        <p className="text-xs text-zinc-400 mt-1">Máximo 10 MB, solo PDF</p>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <PdfOcrSection
+                  pdfFile={pdfFile}
+                  onPdfChange={(file) => setPdfFile(file)}
+                  }}
+                  isExtracting={isExtracting}
+                  extractionStatus={extractionStatus}
+                  extractedData={extractedData}
+                  onChangeFile={() => {
+                    setPdfFile(null);
+                    clearExtraction();
+                  }}
+                  required
+                  inputId="admin-pdf-input"
+                />
               </div>
               <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button
