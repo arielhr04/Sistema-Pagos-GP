@@ -711,31 +711,30 @@ const DashboardPage = () => {
     );
   }
 
-  // Dashboard for Usuario Área with Invoice Registration Form
   if (isUsuarioArea) {
     return (
-      <div className="space-y-6 animate-fade-in" data-testid="user-dashboard">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in" data-testid="user-dashboard">
         <div>
-          <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
+          <h1 className="text-2xl sm:text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
             Bienvenido, {user?.nombre}
           </h1>
-          <p className="text-zinc-500 mt-1">Panel de usuario - {user?.rol}</p>
+          <p className="text-sm sm:text-base text-zinc-500 mt-1">Panel de usuario - {user?.rol}</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Invoice Registration Form */}
           <Card className="bg-white border border-zinc-200" data-tour="invoice-form">
-            <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Plus className="w-5 h-5 text-red-600" />
-                Registrar Nueva Factura
+            <CardHeader className="border-b border-zinc-100 bg-zinc-50/50 p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                <Plus className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <span>Registrar Nueva Factura</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nombre_proveedor">Proveedor *</Label>
+            <CardContent className="p-4 sm:p-6">
+              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="nombre_proveedor" className="text-sm">Proveedor *</Label>
                     <Input
                       id="nombre_proveedor"
                       value={formData.nombre_proveedor}
@@ -743,11 +742,12 @@ const DashboardPage = () => {
                       placeholder="Empresa S.A. de C.V."
                       required
                       data-testid="dashboard-provider-input"
+                      className="text-base"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="folio_fiscal">Folio Fiscal *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="folio_fiscal" className="text-sm">Folio Fiscal *</Label>
                     <Input
                       id="folio_fiscal"
                       value={formData.folio_fiscal}
@@ -756,16 +756,17 @@ const DashboardPage = () => {
                       required
                       data-testid="dashboard-folio-input"
                       data-tour="input-folio"
+                      className="text-base"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="area">Área *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="area" className="text-sm">Área *</Label>
                     <Select
                       value={formData.area_procedencia}
                       onValueChange={(value) => setFormData({ ...formData, area_procedencia: value })}
                     >
-                      <SelectTrigger data-testid="dashboard-area-select">
+                      <SelectTrigger data-testid="dashboard-area-select" className="text-base">
                         <SelectValue placeholder="Seleccionar área" />
                       </SelectTrigger>
                       <SelectContent>
@@ -778,8 +779,8 @@ const DashboardPage = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="monto">Monto *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="monto" className="text-sm">Monto *</Label>
                     <Input
                       id="monto"
                       type="number"
@@ -790,14 +791,13 @@ const DashboardPage = () => {
                       placeholder="10000.00"
                       required
                       data-testid="dashboard-amount-input"
+                      className="text-base"
                     />
                   </div>
 
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Fecha de Vencimiento *</Label>
+                  <div className="space-y-1.5 sm:space-y-2 sm:col-span-2">
+                    <Label className="text-sm">Fecha de Vencimiento *</Label>
                     <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
                           variant="outline"
                           className="w-full justify-start text-left font-normal"
                           data-testid="dashboard-date-btn"

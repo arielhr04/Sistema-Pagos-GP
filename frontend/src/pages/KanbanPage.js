@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -307,6 +308,36 @@ const KanbanColumn = ({ column, invoices, totalCount, onCardClick, onLoadMore, l
 const KanbanPage = () => {
   const { token, user, getAuthHeader } = useAuth();
   const { demoMode, demoData } = useTour();
+  const isMobile = useIsMobile();
+
+  // Si es móvil, mostrar pantalla de no disponible
+  if (isMobile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
+        <div className="text-center space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 max-w-sm mx-auto">
+            <FileText className="w-16 h-16 mx-auto mb-4 text-blue-600" />
+            <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-2">
+              Panel Kanban no disponible
+            </h2>
+            <p className="text-sm sm:text-base text-zinc-600 mb-4">
+              El panel Kanban está optimizado para pantallas grandes (desktop/tablet en modo landscape).
+            </p>
+            <p className="text-sm text-zinc-500 mb-6">
+              Para una mejor experiencia en celular, usa la vista de <strong>Facturas</strong> en el menú.
+            </p>
+            <Button
+              onClick={() => window.location.href = '/invoices'}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              Ir a Facturas
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Per-column state: { [status]: { items: [], total: 0, page: 1, loading: false } }
   const [columnData, setColumnData] = useState(() => {
     const initial = {};

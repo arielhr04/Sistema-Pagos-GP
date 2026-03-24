@@ -98,6 +98,118 @@ code {
 }
 
 /* Animation classes */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Mobile-first responsive utilities */
+@layer components {
+    .min-h-touch {
+        @apply min-h-[2.75rem];
+    }
+
+    /* Responsive text sizes */
+    .text-responsive-sm {
+        @apply text-xs sm:text-sm;
+    }
+
+    .text-responsive-base {
+        @apply text-sm sm:text-base;
+    }
+
+    .text-responsive-lg {
+        @apply text-base sm:text-lg;
+    }
+
+    /* Mobile-optimized inputs */
+    input:focus,
+    textarea:focus,
+    select:focus {
+        /* Prevent zoom on iOS input focus */
+        font-size: 16px !important;
+    }
+
+    /* Smooth scrolling */
+    html {
+        scroll-behavior: smooth;
+    }
+
+    /* Optimized for touch devices */
+    button,
+    a {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Better table scrolling on mobile */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-responsive::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 3px;
+    }
+
+    /* Card responsive padding */
+    .card-responsive {
+        @apply p-3 sm:p-4 md:p-6;
+    }
+
+    /* Dialog responsive sizing */
+    @screen sm {
+        .dialog-content {
+            @apply max-h-[85vh] overflow-y-auto;
+        }
+    }
+
+    /* Badge responsive sizing */
+    .badge-responsive {
+        @apply text-xs sm:text-sm;
+    }
+}
+
+/* Prevent layout shift on scroll */
+html {
+    scrollbar-gutter: stable;
+}
+
+/* Mobile-safe viewport */
+@media (max-width: 640px) {
+    body {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Better spacing on mobile */
+    .container {
+        @apply px-3;
+    }
+
+    /* Ensure buttons are tappable */
+    button {
+        @apply min-h-[44px];
+    }
+
+    /* Better form inputs on mobile */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    select,
+    textarea {
+        @apply text-base;
+        font-size: 16px !important;
+    }
+}
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }

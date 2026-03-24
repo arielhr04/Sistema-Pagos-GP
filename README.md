@@ -26,7 +26,7 @@ Necesitas:
 - SQL Server 2019+ (o Azure SQL)
 - Git
 
-## 🚀 Inicio Rápido (5 minutos)
+## Inicio Rápido (5 minutos)
 
 ### 1️⃣ Clonar y Setup del Backend
 
@@ -66,50 +66,50 @@ Auto-generadas en la primera ejecución:
 - **Tesorero**: tesorero@demo.com / demo123
 - **Administrador**: admin@demo.com / demo123
 
-## 🎨 Características Principales
+## Características Principales
 
-### 📱 Dashboard
+### Dashboard
 - Estadísticas en tiempo real (facturas pendientes, vencidas, pagadas)
 - Carga rápida con caché inteligente
 - Vista personalizada por rol
 
-### 📄 Gestión de Facturas
+### Gestión de Facturas
 - CRUD completo de facturas
 - 5 estados: Capturada → En revisión → Programada → Pagada/Rechazada
 - Upload de PDFs con compresión automática
 - Búsqueda avanzada con filtros
 
-### 🎪 Panel Kanban
+### Panel Kanban
 - Drag & drop visual entre estados
 - Gestión en tiempo real
 - Resumen de montos por columna
 
-### 👥 Gestión de Usuarios y Áreas
+### Gestión de Usuarios y Áreas
 - CRUD de usuarios con asignación de roles
 - Gestión de áreas organizacionales
 - Control de permisos granular
 
-### 📊 Auditoría
+### Auditoría
 - Registro de todos los cambios (quién, cuándo, qué)
 - Logs de login
 - Trazabilidad completa
 
-### 🎓 Sistema de Tours Interactivos
+### Sistema de Tours Interactivos
 - Tours por rol (Usuario Área, Tesorero, Administrador)
 - Modo demo con mock data precargada
 - Sin impacto en BD real (session-local)
 
-## 🔐 Seguridad
+## Seguridad
 
-- ✅ Autenticación JWT con tokens de corta vida (15 min)
-- ✅ Refresh tokens con vida larga (7 días)
-- ✅ Rate limiting contra fuerza bruta (5 intentos/15 min)
-- ✅ Validación y sanitización de entrada contra XSS
-- ✅ Control de acceso basado en roles (RBAC)
-- ✅ CORS configurado
-- ⚠️ Usar HTTPS en producción
+- Autenticación JWT con tokens de corta vida (15 min)
+- Refresh tokens con vida larga (7 días)
+- Rate limiting contra fuerza bruta (5 intentos/15 min)
+- Validación y sanitización de entrada contra XSS
+- Control de acceso basado en roles (RBAC)
+- CORS configurado
+- Usar HTTPS en producción
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 Grupo-Gran-Premio/
@@ -170,7 +170,7 @@ CORS_ORIGINS=http://localhost:3000
 ENV=development
 ```
 
-## 🐳 Docker
+## Docker
 
 ### Construir imagen
 ```bash
@@ -207,11 +207,11 @@ Swagger en `http://localhost:8000/api/docs` cuando el backend está corriendo.
 - **Admin**: Gestionar usuarios, áreas, ver auditoríaactual
 - Capturas de pantalla si es relevante
 
-## 📄 Licencia
+## Licencia
 
 Privado - Uso interno únicamente
 
-## 📞 Contacto
+## Contacto
 
 Para preguntas o soporte, contactar al equipo de desarrollo.
 

@@ -1,10 +1,10 @@
 # Demo Mode - Tour de Demostración Fluido
 
-## 📋 Descripción
+## Descripción
 
 Este sistema proporciona **datos mock instantáneos** cuando el usuario inicia un tour de demostración. Así el tour es completamente **fluido sin latencia** de API.
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 ### 1. **JSON Mock Data** (`/public/mockData/`)
 - `invoices.json` - 5 facturas de demostración con estados variados
@@ -41,7 +41,7 @@ completeTour() →
   ✓ Limpia datos mock
 ```
 
-## 🚀 Cómo Usarlo
+## Cómo Usarlo
 
 ### En componentes que usan datos (Ejemplo: InvoicesPage)
 
@@ -76,7 +76,7 @@ const InvoicesPage = () => {
 };
 ```
 
-## 📊 Datos Mock Disponibles
+## Datos Mock Disponibles
 
 ### Invoices
 - **5 facturas** con estados: Capturada, En revisión, Programada, Pagada, Rechazada
@@ -101,30 +101,30 @@ Se calculan automáticamente desde las facturas:
 - Facturas pendientes / vencidas / pagadas
 - Montos totales por estado
 
-## ⚡ Performance
+## Performance
 
 - **Carga en memoria**: Una sola vez al iniciar tour (100ms)
 - **Latencia simulada**: 150-200ms (para que se sienta real)
 - **Sin llamadas a API**: Tour es completamente offline-ready
 - **Proveedor automaticamente**: En `startTour()` se precarga en paralelo
 
-## 🔧 Agregar Más Datos Mock
+## Agregar Más Datos Mock
 
 1. Edita `/public/mockData/invoices.json`
 2. Edita `/public/mockData/areas.json`
 3. Edita `/public/mockData/users.json`
 4. Los cambios son automáticos (sin recompilar)
 
-## ❌ Restricciones en Demo Mode
+## Restricciones en Demo Mode
 
 En demo mode:
-- ✅ Ver datos (GET)
-- ✅ Filtrar y buscar
-- ❌ No puedes crear (POST) - lanza error
-- ❌ No puedes modificar (PUT) - lanza error
-- ❌ No puedes borrar (DELETE) - lanza error
+- Ver datos (GET)
+- Filtrar y buscar
+- No puedes crear (POST) - lanza error
+- No puedes modificar (PUT) - lanza error
+- No puedes borrar (DELETE) - lanza error
 
-## 📝 Uso en Componentes
+## Uso en Componentes
 
 ### DashboardPage
 ```javascript
@@ -147,7 +147,7 @@ if (demoMode) {
 // Real: Usuarios de la BD
 ```
 
-## 🔄 Flujo Completo
+## Flujo Completo
 
 ```
 Usuario clickea "?" en header
@@ -171,7 +171,7 @@ completeTour() → demoMode = false
 Componentes vuelven a usar API real
 ```
 
-## 🐛 Debugging
+## Debugging
 
 Si algo no carga en demo mode:
 
@@ -185,4 +185,4 @@ En apiClient.js hay logs de qué modo se está usando.
 
 ---
 
-**Resultado**: Tour rápido, fluido y sin esperas. ¡Perfecto para demostración! ✨
+**Resultado**: Tour rápido, fluido y sin esperas. Perfecto para demostración!
