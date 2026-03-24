@@ -190,7 +190,7 @@ const DashboardPage = () => {
     folio_fiscal: '',
   });
   const [pdfFile, setPdfFile] = useState(null);
-  const { extractedData, extractionStatus, isExtracting, extractFromPdf } = useInvoiceExtraction();
+  const { extractedData, extractionStatus, isExtracting, extractFromPdf, clearExtraction } = useInvoiceExtraction();
 
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
@@ -759,6 +759,55 @@ const DashboardPage = () => {
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+                {/* Sección de PDF al inicio con indicación OCR */}
+                <div className="space-y-2 mb-2 sm:mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <Label className="text-sm font-semibold text-blue-900">Archivo PDF * (OCR Automático)</Label>
+                      <p className="text-xs text-blue-700 mt-1">Sube la factura y los datos se rellenarán automáticamente</p>
+                    </div>
+                  </div>
+                  <div 
+                    {...getInvoicePdfRootProps()}
+                    data-tour="upload-pdf"
+                    className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer mt-3 ${
+                      pdfFile ? 'border-green-500 bg-green-50' : 
+                      isInvoicePdfDragActive ? 'border-red-500 bg-red-50' : 
+                      'border-blue-300 hover:border-blue-500'
+                    }`}
+                  >
+                    <input {...getInvoicePdfInputProps()} data-testid="dashboard-pdf-input" />
+                    {pdfFile ? (
+                      <div className="flex items-center justify-center gap-2 text-green-700">
+                        <FileText className="w-6 h-6" />
+                        <span className="font-medium text-sm">{pdfFile.name}</span>
+                      </div>
+                    ) : (
+                      <div className="text-blue-600">
+                        <Upload className="w-6 h-6 mx-auto mb-1" />
+                        <p className="text-sm font-medium">Arrastra aquí el archivo PDF o haz clic para seleccionar</p>
+                      </div>
+                    )}
+                  </div>
+                  {pdfFile && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setPdfFile(null);
+                        clearExtraction();
+                      }}
+                    >
+                      Cambiar archivo
+                    </Button>
+                  )}
+                  {!pdfFile && (
+                    <p className="text-xs text-blue-600">* El archivo PDF es obligatorio para registrar la factura</p>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <FormFieldWithExtraction
                     label="Proveedor"
@@ -882,45 +931,6 @@ const DashboardPage = () => {
                       data-testid="dashboard-description-input"
                     />
                   </FormFieldWithExtraction>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Archivo PDF *</Label>
-                    <div 
-                      {...getInvoicePdfRootProps()}
-                      data-tour="upload-pdf"
-                      className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-                        pdfFile ? 'border-green-500 bg-green-50' : 
-                        isInvoicePdfDragActive ? 'border-red-500 bg-red-50' : 
-                        'border-zinc-300 hover:border-red-500'
-                      }`}
-                    >
-                      <input {...getInvoicePdfInputProps()} data-testid="dashboard-pdf-input" />
-                      {pdfFile ? (
-                        <div className="flex items-center justify-center gap-2 text-green-700">
-                          <FileText className="w-6 h-6" />
-                          <span className="font-medium text-sm">{pdfFile.name}</span>
-                        </div>
-                      ) : (
-                        <div className="text-zinc-500">
-                          <Upload className="w-6 h-6 mx-auto mb-1" />
-                          <p className="text-sm font-medium">Arrastra aquí el archivo PDF o haz clic para seleccionar</p>
-                        </div>
-                      )}
-                    </div>
-                    {pdfFile && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => setPdfFile(null)}
-                      >
-                        Cambiar archivo
-                      </Button>
-                    )}
-                    {!pdfFile && (
-                      <p className="text-xs text-zinc-500">* El archivo PDF es obligatorio para registrar la factura</p>
-                    )}
-                  </div>
                 </div>
 
                 <Button
