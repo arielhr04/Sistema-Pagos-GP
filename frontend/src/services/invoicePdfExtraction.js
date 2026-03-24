@@ -5,7 +5,9 @@
  * Backend: Pytesseract con soporte español/inglés
  */
 
-import { apiClient } from '../lib/apiClient';
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 /**
  * Extrae datos de factura usando OCR en el backend
@@ -17,9 +19,13 @@ export const extractInvoiceDataViaOCR = async (pdfFile) => {
     const formData = new FormData();
     formData.append('pdf_file', pdfFile);
     
+    // Obtener token del localStorage (clave: 'token')
+    const token = localStorage.getItem('token');
+    
     // Llamar al endpoint de OCR del backend
-    const response = await apiClient.post('/invoices/extract-ocr', formData, {
+    const response = await axios.post(`${API_URL}/api/invoices/extract-ocr`, formData, {
       headers: {
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'multipart/form-data',
       },
     });
