@@ -3,8 +3,8 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 /**
  * Componente de campo de formulario con feedback de extracción de PDF
- * Muestra verde si el campo fue rellenado automáticamente
- * Muestra azul si necesita ser completado manualmente
+ * Mantiene el layout normal inicialmente
+ * Solo aplica estilos visuales cuando hay extracción (filled/empty)
  */
 export const FormFieldWithExtraction = ({
   label,
@@ -16,10 +16,10 @@ export const FormFieldWithExtraction = ({
   // Determinar estado: 'filled' | 'empty' | undefined (no extraído)
   const status = extractionStatus?.[fieldName];
   
-  // Estilos basados en status de facturas (similar a los del proyecto)
+  // Estilos solo se aplican cuando hay extracción
   const styles = {
     filled: {
-      container: 'bg-green-50 border-l-4 border-green-400',
+      wrapper: 'bg-green-50 border-l-4 border-green-400 rounded-lg p-3',
       label: 'text-green-900 font-medium',
       icon: CheckCircle2,
       iconColor: 'text-green-600',
@@ -27,7 +27,7 @@ export const FormFieldWithExtraction = ({
       messageColor: 'text-green-700',
     },
     empty: {
-      container: 'bg-blue-50 border-l-4 border-blue-400',
+      wrapper: 'bg-blue-50 border-l-4 border-blue-400 rounded-lg p-3',
       label: 'text-blue-900 font-medium',
       icon: AlertCircle,
       iconColor: 'text-blue-600',
@@ -35,7 +35,7 @@ export const FormFieldWithExtraction = ({
       messageColor: 'text-blue-700',
     },
     default: {
-      container: 'bg-white',
+      wrapper: '',
       label: 'text-zinc-900',
       icon: null,
       iconColor: '',
@@ -47,14 +47,27 @@ export const FormFieldWithExtraction = ({
   const currentStyle = status ? styles[status] : styles.default;
   const IconComponent = currentStyle.icon;
 
+  // Si no hay extracción, renderizar sin estilos extra (layout normal)
+  if (!status) {
+    return (
+      <div className="space-y-1.5 sm:space-y-2">
+        <Label className="text-sm">
+          {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </Label>
+        {children}
+      </div>
+    );
+  }
+
+  // Si hay extracción, aplicar estilos
   return (
-    <div className={`space-y-1.5 sm:space-y-2 p-3 sm:p-4 rounded-lg transition-colors ${currentStyle.container}`}>
+    <div className={`space-y-1.5 sm:space-y-2 transition-all duration-200 ${currentStyle.wrapper}`}>
       <Label className={`text-sm sm:text-base ${currentStyle.label}`}>
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </Label>
 
-      {/* Render el input/select */}
       <div className="space-y-1.5">
         {children}
 

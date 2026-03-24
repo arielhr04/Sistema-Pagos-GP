@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
-import { extractInvoiceData } from '../services/invoicePdfExtraction';
+import { extractInvoiceDataViaOCR } from '../services/invoicePdfExtraction';
 
 /**
  * Hook para extraer datos de facturas desde PDF
+ * Usa OCR en el backend para máxima precisión
  * Retorna el estado de extracción para cada campo
  */
 export const useInvoiceExtraction = () => {
@@ -18,7 +19,8 @@ export const useInvoiceExtraction = () => {
     setExtractionError(null);
 
     try {
-      const data = await extractInvoiceData(pdfFile);
+      // Usar OCR del backend
+      const data = await extractInvoiceDataViaOCR(pdfFile);
       setExtractedData(data);
 
       // Calcular estado de cada campo
@@ -34,8 +36,8 @@ export const useInvoiceExtraction = () => {
 
       return data;
     } catch (error) {
-      console.error('Error en extracción:', error);
-      setExtractionError(error.message);
+      console.error('Error en extracción OCR:', error);
+      setExtractionError(error.message || 'Error al procesar el PDF');
       return null;
     } finally {
       setIsExtracting(false);

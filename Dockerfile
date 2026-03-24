@@ -21,7 +21,9 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     apt-transport-https \
-    ca-certificates
+    ca-certificates \
+    tesseract-ocr \
+    libtesseract-dev
 
 # agregar repositorio Microsoft
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg

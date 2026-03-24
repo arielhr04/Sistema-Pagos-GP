@@ -12,6 +12,7 @@ from backend.schemas.invoice_schemas import (
 )
 from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
 from backend.services.auth_service import require_roles, get_current_user
+from backend.services.ocr_service import extract_invoice_data_with_ocr
 from backend.services.pdf_storage import PDFStorage
 from backend.services.invoice_service import (
     TREASURY_REVIEW_PENDING,
@@ -512,3 +513,48 @@ def export_invoices_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=facturas.xlsx"},
     )
+
+
+@router.post("/invoices/extract-ocr")
+def extract_invoice_ocr(
+    pdf_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Extract invoice data from PDF using OCR.
+    
+    Returns extracted fields:
+    - nombre_proveedor
+    - monto
+    - folio_fiscal
+    - fecha_vencimiento
+    - descripcion_factura
+    """
+    try:
+        content = pdf_file.file.read()
+        
+        if not content:
+            raise HTTPException(status_code=400, detail="El archivo PDF está vacío")
+        
+        if len(content) > 50 * 1024 * 1024:  # 50 MB limit
+            raise HTTPException(status_code=413, detail="El archivo PDF es demasiado grande (máximo 50 MB)")
+        
+        # Extract data using OCR backend
+        extracted_data = extract_invoice_data_with_ocr(content)
+        
+        return {
+            "success": True,
+            "data": extracted_data,
+            "message": "Datos extraídos correctamente del PDF"
+        }
+    
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Tesseract OCR no está instalado. Por favor, instala pytesseract o usa la extracción manual."
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar el PDF: {str(e)}"
+        ) from e

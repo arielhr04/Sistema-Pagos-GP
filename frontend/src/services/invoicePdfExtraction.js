@@ -1,33 +1,89 @@
 /**
  * Servicio de extracción de datos de facturas PDF
- * Utiliza pdfjs-dist para extraer texto y patrones regex para identificar campos
+ * Usa OCR en el backend para extraer datos de PDFs reales y escaneados
+ * 
+ * Backend: Pytesseract con soporte español/inglés
  */
 
-// Simulación de pdfjs (si no está instalado, funciona con datos mock)
-// En producción instalar: npm install pdfjs-dist
+import { apiClient } from './apiClient';
 
 /**
- * Extrae texto de un archivo PDF usando FileReader
+ * Extrae datos de factura usando OCR en el backend
  * @param {File} pdfFile - Archivo PDF
- * @returns {Promise<string>} Texto extraído
+ * @returns {Promise<Object>} Datos extraídos {nombre_proveedor, monto, folio_fiscal, fecha_vencimiento, descripcion_factura}
+ */
+export const extractInvoiceDataViaOCR = async (pdfFile) => {
+  try {
+    const formData = new FormData();
+    formData.append('pdf_file', pdfFile);
+    
+    // Llamar al endpoint de OCR del backend
+    const response = await apiClient.post('/invoices/extract-ocr', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    if (response.data && response.data.data) {
+      return response.data.data;
+    }
+    
+    return {
+      nombre_proveedor: null,
+      monto: null,
+      folio_fiscal: null,
+      fecha_vencimiento: null,
+      descripcion_factura: null,
+    };
+  } catch (error) {
+    console.error('Error en extracción OCR del backend:', error);
+    throw error;
+  }
+};
+
+/**
+ * Extrae texto plano de un PDF binario (fallback)
+ * Para PDFs con texto embebido cuando OCR no está disponible
+ */
+const extractTextFromPdfBinary = (arrayBuffer) => {
+  try {
+    const view = new Uint8Array(arrayBuffer);
+    let text = '';
+    
+    for (let i = 0; i < view.length; i++) {
+      const byte = view[i];
+      if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13) {
+        text += String.fromCharCode(byte);
+      }
+    }
+    
+    return text;
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    return '';
+  }
+};
+
+/**
+ * Lee un archivo PDF y retorna su contenido como texto
+ * @param {File} pdfFile - Archivo PDF
+ * @returns {Promise<string>} Texto extraído del PDF
  */
 export const extractTextFromPdf = async (pdfFile) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    
+    reader.onload = (event) => {
       try {
-        // Para MVP, retornamos la información mínima
-        // En producción, usar pdfjs-dist para OCR real
         const arrayBuffer = event.target.result;
-        
-        // Intento simple: buscar patrones en el contenido
-        const text = arrayBuffer.toString();
+        const text = extractTextFromPdfBinary(arrayBuffer);
         resolve(text);
       } catch (error) {
         reject(error);
       }
     };
-    reader.onerror = () => reject(new Error('Error al leer PDF'));
+    
+    reader.onerror = () => reject(new Error('Error al leer el archivo PDF'));
     reader.readAsArrayBuffer(pdfFile);
   });
 };
@@ -94,20 +150,21 @@ export const extractCompanyName = (text) => {
 export const extractAmount = (text) => {
   if (!text) return null;
 
-  // Buscar patrones: "Total", "TOTAL", "Monto", etc.
+  // Buscar patrones comunes de montos en facturas mexicanas
   const patterns = [
-    /total\s*[:\s]+\$?\s*([\d,\.]+)/i,
-    /monto\s*[:\s]+\$?\s*([\d,\.]+)/i,
-    /importe\s*[:\s]+\$?\s*([\d,\.]+)/i,
-    /(?:importe\s+total|total\s+a\s+pagar)[:\s]+\$?\s*([\d,\.]+)/i,
+    /(?:total|monto|importe)\s*(?:a\s+pagar)?[:\s]*\$?\s*([\d,\.]+)(?:\s*(?:MX)?N?)/i,
+    /\$\s*([\d,\.]+)(?:\s*(?:MXN|peso|pesos))?/i,
+    /(?:importe\s+total)[:\s]*\$?\s*([\d,\.]+)/i,
+    /(?:cantidad|precio)\s*[:\s]*\$?\s*([\d,\.]+)/i,
   ];
 
   for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const amount = match[1].replace(',', '').replace('$', '').trim();
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const amount = match[1].replace(/\s/g, '').replace(',', '').trim();
       const parsed = parseFloat(amount);
-      if (!isNaN(parsed) && parsed > 0) {
+      // Filtrar montos razonables (mayor a 0 y menor a 999,999,999)
+      if (!isNaN(parsed) && parsed > 0 && parsed < 999999999) {
         return parsed.toString();
       }
     }
@@ -117,30 +174,43 @@ export const extractAmount = (text) => {
 };
 
 /**
- * Extrae el folio fiscal (RFC o UUID)
+ * Extrae el folio fiscal (RFC, UUID, o código similar)
  */
 export const extractFolio = (text) => {
   if (!text) return null;
 
-  // Buscar RFC (formato mexicano típico)
-  const rfcPattern = /\b[A-ZÑ]{3,4}\d{6}[A-Z0-9]{3}\b/;
-  const rfcMatch = text.match(rfcPattern);
-  if (rfcMatch) {
-    return rfcMatch[0];
-  }
+  // Patrones en orden de especificidad
 
-  // Buscar UUID o códigos similares
+  // 1. Buscar UUID de factura electrónica (CFDI)
   const uuidPattern = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
   const uuidMatch = text.match(uuidPattern);
   if (uuidMatch) {
     return uuidMatch[0];
   }
 
-  // Buscar códigos alfanuméricos que parecen folios
-  const folioPattern = /folio[:\s]+([A-Z0-9\-]{5,30})/i;
-  const folioMatch = text.match(folioPattern);
+  // 2. Buscar RFC (formato mexicano: 3-4 letras + 6 números + 3 alfanuméricos)
+  const rfcPattern = /\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b/;
+  const rfcMatch = text.match(rfcPattern);
+  if (rfcMatch) {
+    return rfcMatch[0];
+  }
+
+  // 3. Buscar folio explícitamente etiquetado
+  const folioLabelPattern = /(?:folio|folio\s+fiscal)[:\s]*([A-Z0-9\-]{5,50})/i;
+  const folioMatch = text.match(folioLabelPattern);
   if (folioMatch) {
-    return folioMatch[1].trim();
+    const folio = folioMatch[1].trim();
+    // Validar que no sea una palabra común
+    if (!/^(del|de|la|the|a|o)$/i.test(folio) && folio.length > 3) {
+      return folio;
+    }
+  }
+
+  // 4. Buscar código de serie + folio (patrón: letra/número seguido de números)
+  const seriePattern = /\b[A-Z]{1,3}[\s-]?\d{1,10}\b/;
+  const serieMatch = text.match(seriePattern);
+  if (serieMatch) {
+    return serieMatch[0].replace(/\s/g, '');
   }
 
   return null;
@@ -226,29 +296,41 @@ export const extractDescription = (text) => {
 
 /**
  * Función principal: Extrae todos los datos del PDF
- * Retorna un objeto con los campos extraídos y su estado
+ * Lee el contenido real del PDF y aplica detección inteligente
  */
 export const extractInvoiceData = async (pdfFile) => {
   try {
-    // Nota: Esta es una implementación simplificada
-    // Para OCR real, se necesitaría pdfjs-dist instalado
-    
-    // Por ahora, retornamos estructura que indica qué se pudo extraer
-    const mockText = `
-      Razón Social: EMPRESA DE PRUEBA S.A. DE C.V.
-      RFC: EMP123456XYZ
-      Folio Fiscal: ABC-123-456
-      Total: $15,500.00
-      Fecha de Vencimiento: 15/05/2026
-      Concepto: Servicios profesionales de consultoría
-    `;
+    if (!pdfFile) {
+      return {
+        nombre_proveedor: null,
+        monto: null,
+        folio_fiscal: null,
+        fecha_vencimiento: null,
+        descripcion_factura: null,
+      };
+    }
 
+    // Extraer texto real del PDF
+    const text = await extractTextFromPdf(pdfFile);
+
+    if (!text) {
+      console.warn('No se pudo extraer texto del PDF');
+      return {
+        nombre_proveedor: null,
+        monto: null,
+        folio_fiscal: null,
+        fecha_vencimiento: null,
+        descripcion_factura: null,
+      };
+    }
+
+    // Extraer datos usando las funciones de detección
     return {
-      nombre_proveedor: extractCompanyName(mockText),
-      monto: extractAmount(mockText),
-      folio_fiscal: extractFolio(mockText),
-      fecha_vencimiento: extractDueDate(mockText),
-      descripcion_factura: extractDescription(mockText),
+      nombre_proveedor: extractCompanyName(text),
+      monto: extractAmount(text),
+      folio_fiscal: extractFolio(text),
+      fecha_vencimiento: extractDueDate(text),
+      descripcion_factura: extractDescription(text),
     };
   } catch (error) {
     console.error('Error en extracción de PDF:', error);
