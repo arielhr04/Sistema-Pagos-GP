@@ -1519,7 +1519,6 @@ const DashboardPage = () => {
                 <PdfOcrSection
                   pdfFile={pdfFile}
                   onPdfChange={(file) => setPdfFile(file)}
-                  }}
                   isExtracting={isExtracting}
                   extractionStatus={extractionStatus}
                   extractedData={extractedData}
@@ -1528,6 +1527,8 @@ const DashboardPage = () => {
                     clearExtraction();
                   }}
                   required
+                  inputId="admin-pdf-input"
+                />
                   inputId="admin-pdf-input"
                 />
               </div>
