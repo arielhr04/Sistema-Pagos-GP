@@ -196,6 +196,7 @@ const DashboardPage = () => {
 
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
+  const canRegisterInvoices = user?.rol === 'Usuario Área' || user?.rol === 'Administrador';
 
   // Helpers compartidos de validación y configuración HTTP
   const getMultipartAuthConfig = useCallback(() => ({
@@ -765,7 +766,7 @@ const DashboardPage = () => {
     );
   }
 
-  if (isUsuarioArea) {
+  if (isUsuarioArea || user?.rol === 'Administrador') {
     return (
       <div className="space-y-4 sm:space-y-6 animate-fade-in" data-testid="user-dashboard">
         <div>

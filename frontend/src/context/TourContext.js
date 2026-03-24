@@ -37,7 +37,7 @@ const STEPS_USUARIO_AREA = [
   },
   {
     target: '[data-tour="upload-pdf"]',
-    content: 'Arrastra el PDF de la factura aquí o haz clic para seleccionar. Solo archivos PDF, máximo 10 MB.',
+    content: 'Sube el PDF de la factura (obligatorio) y opcionalmente el XML CFDI. Si subes el XML, los datos se llenarán automáticamente.',
     page: '/dashboard',
   },
   {
