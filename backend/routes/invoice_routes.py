@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from io import BytesIO
 from openpyxl import Workbook
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,7 @@ from backend.schemas.invoice_schemas import (
 )
 from backend.schemas.enums import RoleEnum, InvoiceStatusEnum
 from backend.services.auth_service import require_roles, get_current_user
-from backend.services.ocr_service import extract_invoice_data_with_ocr
+from backend.services.xml_service import extract_invoice_data_from_xml
 from backend.services.pdf_storage import PDFStorage
 from backend.services.invoice_service import (
     TREASURY_REVIEW_PENDING,
@@ -42,6 +43,7 @@ from backend.models.area import Area
 from backend.models.user import User
 
 router = APIRouter(prefix="/api", tags=["Invoices"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/invoices", response_model=InvoiceResponse)
@@ -53,6 +55,7 @@ def create_invoice(
     fecha_vencimiento: str = Form(...),
     folio_fiscal: str = Form(...),
     pdf_file: UploadFile = File(...),
+    xml_file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -67,8 +70,45 @@ def create_invoice(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Validar PDF (tamaño, extensión, vacío)
+    # Validar PDF (tamaño, extensión, vacío) - requerido
     content = validate_pdf_upload(pdf_file)
+    
+    # Procesar XML opcional si se proporciona
+    if xml_file:
+        try:
+            xml_content = xml_file.file.read()
+            if not xml_content:
+                raise HTTPException(status_code=400, detail="El archivo XML está vacío")
+            if len(xml_content) > 5 * 1024 * 1024:  # 5 MB limit
+                raise HTTPException(status_code=413, detail="El archivo XML es demasiado grande (máximo 5 MB)")
+            
+            # Extraer datos del XML
+            xml_data = extract_invoice_data_from_xml(xml_content)
+            
+            # Usar datos del XML para llenar campos faltantes
+            if xml_data:
+                if not nombre_proveedor or nombre_proveedor == '':
+                    nombre_proveedor = xml_data.get('razon_social') or nombre_proveedor
+                if not monto or monto == 0:
+                    monto_str = xml_data.get('total')
+                    if monto_str:
+                        try:
+                            monto = float(monto_str)
+                        except (ValueError, TypeError):
+                            pass
+                if not folio_fiscal or folio_fiscal == '':
+                    folio_fiscal = xml_data.get('folio_fiscal') or folio_fiscal
+                if not fecha_vencimiento or fecha_vencimiento == '':
+                    fecha_emision = xml_data.get('fecha_emision')
+                    if fecha_emision:
+                        fecha_vencimiento = fecha_emision
+                if not descripcion_factura or descripcion_factura == '':
+                    descripcion_factura = xml_data.get('descripcion_factura') or descripcion_factura
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=f"Error procesando XML: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error procesando XML: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error al procesar el archivo XML")
 
     # Folio duplicado
     existing = db.query(Invoice).filter(Invoice.folio_fiscal == folio_fiscal).first()
@@ -515,46 +555,34 @@ def export_invoices_excel(
     )
 
 
-@router.post("/invoices/extract-ocr")
-def extract_invoice_ocr(
-    pdf_file: UploadFile = File(...),
+@router.post("/invoices/extract-xml")
+def extract_invoice_xml(
+    xml_file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Extract invoice data from PDF using OCR.
-    
-    Returns extracted fields:
-    - razon_social
-    - total
-    - folio_fiscal
-    - fecha_vencimiento
-    - descripcion_factura
+    Extrae datos de factura desde un archivo XML CFDI.
+    Retorna: razon_social, total, folio_fiscal, fecha_emision, descripcion_factura
     """
     try:
-        content = pdf_file.file.read()
-        
+        content = xml_file.file.read()
+
         if not content:
-            raise HTTPException(status_code=400, detail="El archivo PDF está vacío")
-        
-        if len(content) > 50 * 1024 * 1024:  # 50 MB limit
-            raise HTTPException(status_code=413, detail="El archivo PDF es demasiado grande (máximo 50 MB)")
-        
-        # Extract data using OCR backend
-        extracted_data = extract_invoice_data_with_ocr(content)
-        
+            raise HTTPException(status_code=400, detail="El archivo XML está vacío")
+
+        if len(content) > 5 * 1024 * 1024:  # 5 MB limit
+            raise HTTPException(status_code=413, detail="El archivo XML es demasiado grande (máximo 5 MB)")
+
+        extracted_data = extract_invoice_data_from_xml(content)
+
         return {
             "success": True,
             "data": extracted_data,
-            "message": "Datos extraídos correctamente del PDF"
+            "message": "Datos extraídos correctamente del XML CFDI"
         }
-    
-    except FileNotFoundError as e:
-        raise HTTPException(
-            status_code=500,
-            detail="Error al procesar el PDF. Verifica que el archivo es un PDF válido con texto digital embebido."
-        ) from e
+
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al procesar el PDF: {str(e)}"
-        ) from e
+        logger.error(f"Error procesando XML: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al procesar el archivo XML")

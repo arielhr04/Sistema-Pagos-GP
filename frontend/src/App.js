@@ -11,7 +11,6 @@ const KanbanPage = lazy(() => import("./pages/KanbanPage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
 const AuditPage = lazy(() => import("./pages/AuditPage"));
 const AreasPage = lazy(() => import("./pages/AreasPage"));
-const TestOCRPage = lazy(() => import("./pages/TestOCRPage"));
 const Layout = lazy(() => import("./components/Layout"));
 
 const PageLoader = () => (
@@ -48,7 +47,6 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-      <Route path="/test-ocr" element={<TestOCRPage />} />
       
       <Route path="/" element={
         <ProtectedRoute>

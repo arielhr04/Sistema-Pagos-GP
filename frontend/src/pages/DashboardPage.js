@@ -191,7 +191,8 @@ const DashboardPage = () => {
     folio_fiscal: '',
   });
   const [pdfFile, setPdfFile] = useState(null);
-  const { extractedData, extractionStatus, isExtracting, extractFromPdf, clearExtraction } = useInvoiceExtraction();
+  const [xmlFile, setXmlFile] = useState(null);
+  const { extractedData, extractionStatus, isExtracting, extractFromXml, clearExtraction } = useInvoiceExtraction();
 
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
@@ -598,11 +599,11 @@ const DashboardPage = () => {
 
   // Extracción automática de datos cuando se carga un PDF
   useEffect(() => {
-    if (pdfFile) {
-      // Intentar extraer datos del PDF
-      console.log('📋 Iniciando extracción del PDF:', pdfFile.name);
-      extractFromPdf(pdfFile).then((data) => {
-        console.log('📨 Datos retornados por extractFromPdf:', data);
+    if (xmlFile) {
+      // Intentar extraer datos del XML
+      console.log('📄 Iniciando extracción del XML CFDI:', xmlFile.name);
+      extractFromXml(xmlFile).then((data) => {
+        console.log('📨 Datos retornados por extractFromXml:', data);
         if (data) {
           console.log('🔄 Autocompletando formulario con datos extraídos...');
           // Autocompletar campos con datos extraídos (mapear nuevos nombres a campos de forma)
@@ -612,8 +613,8 @@ const DashboardPage = () => {
               nombre_proveedor: data.razon_social || prev.nombre_proveedor,
               monto: data.total || prev.monto,
               folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
-              fecha_vencimiento: data.fecha_vencimiento 
-                ? new Date(data.fecha_vencimiento)
+              fecha_vencimiento: data.fecha_emision 
+                ? new Date(data.fecha_emision)
                 : prev.fecha_vencimiento,
               descripcion_factura: data.descripcion_factura || prev.descripcion_factura,
             };
@@ -626,21 +627,21 @@ const DashboardPage = () => {
             data.razon_social,
             data.total,
             data.folio_fiscal,
-            data.fecha_vencimiento,
+            data.fecha_emision,
             data.descripcion_factura
           ].filter(v => v).length;
           
           console.log(`📊 Campos completados: ${filledCount}`);
           toast.success(`✓ ${filledCount} campos completados automáticamente`);
         } else {
-          console.warn('⚠️ No se obtuvieron datos del PDF');
-          toast.info('No se pudieron extraer datos del PDF. Completa los campos manualmente.');
+          console.warn('⚠️ No se obtuvieron datos del XML');
+          toast.info('No se pudieron extraer datos del XML. Completa los campos manualmente.');
         }
       }).catch((err) => {
         console.error('❌ Error en promise de extracción:', err);
       });
     }
-  }, [pdfFile, extractFromPdf]);
+  }, [xmlFile, extractFromXml]);
   const { getRootProps: getInvoicePdfRootProps, getInputProps: getInvoicePdfInputProps, isDragActive: isInvoicePdfDragActive } = useDropzone({
     accept: {
       'application/pdf': ['.pdf']
@@ -698,6 +699,8 @@ const DashboardPage = () => {
       folio_fiscal: '',
     });
     setPdfFile(null);
+    setXmlFile(null);
+    clearExtraction();
   };
 
   const handleSubmit = async (e) => {
@@ -735,6 +738,9 @@ const DashboardPage = () => {
       data.append('fecha_vencimiento', format(formData.fecha_vencimiento, 'yyyy-MM-dd'));
       data.append('folio_fiscal', formData.folio_fiscal);
       data.append('pdf_file', pdfFile);
+      if (xmlFile) {
+        data.append('xml_file', xmlFile);
+      }
 
       await axios.post(`${API_URL}/api/invoices`, data, {
         ...getMultipartAuthConfig()
@@ -790,12 +796,17 @@ const DashboardPage = () => {
                   <div data-tour="upload-pdf">
                     <PdfOcrSection
                       pdfFile={pdfFile}
-                      onPdfChange={(file) => setPdfFile(file)}
+                      xmlFile={xmlFile}
+                      onFilesChange={(files) => {
+                        setPdfFile(files.pdfFile || pdfFile);
+                        setXmlFile(files.xmlFile || xmlFile);
+                      }}
                       isExtracting={isExtracting}
                       extractionStatus={extractionStatus}
                       extractedData={extractedData}
-                      onChangeFile={() => {
+                      onChangeFiles={() => {
                         setPdfFile(null);
+                        setXmlFile(null);
                         clearExtraction();
                       }}
                       required
@@ -1518,17 +1529,20 @@ const DashboardPage = () => {
                 </div>
                 <PdfOcrSection
                   pdfFile={pdfFile}
-                  onPdfChange={(file) => setPdfFile(file)}
+                  xmlFile={xmlFile}
+                  onFilesChange={(files) => {
+                    setPdfFile(files.pdfFile || pdfFile);
+                    setXmlFile(files.xmlFile || xmlFile);
+                  }}
                   isExtracting={isExtracting}
                   extractionStatus={extractionStatus}
                   extractedData={extractedData}
-                  onChangeFile={() => {
+                  onChangeFiles={() => {
                     setPdfFile(null);
+                    setXmlFile(null);
                     clearExtraction();
                   }}
                   required
-                  inputId="admin-pdf-input"
-                />
                   inputId="admin-pdf-input"
                 />
               </div>
