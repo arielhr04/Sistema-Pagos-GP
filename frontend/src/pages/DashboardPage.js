@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
+import { useInvoiceExtraction } from '../hooks/useInvoiceExtraction';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -10,6 +11,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
+import FormFieldWithExtraction from '../components/FormFieldWithExtraction';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import { parseDateOnly } from '../lib/date';
@@ -188,6 +190,7 @@ const DashboardPage = () => {
     folio_fiscal: '',
   });
   const [pdfFile, setPdfFile] = useState(null);
+  const { extractedData, extractionStatus, isExtracting, extractFromPdf } = useInvoiceExtraction();
 
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
@@ -592,7 +595,31 @@ const DashboardPage = () => {
     fetchData();
   }, [fetchData]);
 
-  // Dropzone for invoice PDF
+  // Extracción automática de datos cuando se carga un PDF
+  useEffect(() => {
+    if (pdfFile) {
+      // Intentar extraer datos del PDF
+      extractFromPdf(pdfFile).then((data) => {
+        if (data) {
+          // Autocompletar campos con datos extraídos
+          setFormData(prev => ({
+            ...prev,
+            nombre_proveedor: data.nombre_proveedor || prev.nombre_proveedor,
+            monto: data.monto || prev.monto,
+            folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
+            fecha_vencimiento: data.fecha_vencimiento 
+              ? new Date(data.fecha_vencimiento)
+              : prev.fecha_vencimiento,
+            descripcion_factura: data.descripcion_factura || prev.descripcion_factura,
+          }));
+
+          // Mostrar notificación
+          const filledCount = Object.values(data).filter(v => v).length;
+          toast.success(`✓ ${filledCount} campos completados automáticamente`);
+        }
+      });
+    }
+  }, [pdfFile, extractFromPdf]);
   const { getRootProps: getInvoicePdfRootProps, getInputProps: getInvoicePdfInputProps, isDragActive: isInvoicePdfDragActive } = useDropzone({
     accept: {
       'application/pdf': ['.pdf']
@@ -733,8 +760,12 @@ const DashboardPage = () => {
             <CardContent className="p-4 sm:p-6">
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="nombre_proveedor" className="text-sm">Proveedor *</Label>
+                  <FormFieldWithExtraction
+                    label="Proveedor"
+                    fieldName="nombre_proveedor"
+                    extractionStatus={extractionStatus}
+                    required
+                  >
                     <Input
                       id="nombre_proveedor"
                       value={formData.nombre_proveedor}
@@ -744,10 +775,14 @@ const DashboardPage = () => {
                       data-testid="dashboard-provider-input"
                       className="text-base"
                     />
-                  </div>
+                  </FormFieldWithExtraction>
 
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="folio_fiscal" className="text-sm">Folio Fiscal *</Label>
+                  <FormFieldWithExtraction
+                    label="Folio Fiscal"
+                    fieldName="folio_fiscal"
+                    extractionStatus={extractionStatus}
+                    required
+                  >
                     <Input
                       id="folio_fiscal"
                       value={formData.folio_fiscal}
@@ -758,7 +793,7 @@ const DashboardPage = () => {
                       data-tour="input-folio"
                       className="text-base"
                     />
-                  </div>
+                  </FormFieldWithExtraction>
 
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="area" className="text-sm">Área *</Label>
@@ -779,8 +814,12 @@ const DashboardPage = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="monto" className="text-sm">Monto *</Label>
+                  <FormFieldWithExtraction
+                    label="Monto"
+                    fieldName="monto"
+                    extractionStatus={extractionStatus}
+                    required
+                  >
                     <Input
                       id="monto"
                       type="number"
@@ -793,10 +832,14 @@ const DashboardPage = () => {
                       data-testid="dashboard-amount-input"
                       className="text-base"
                     />
-                  </div>
+                  </FormFieldWithExtraction>
 
-                  <div className="space-y-1.5 sm:space-y-2 sm:col-span-2">
-                    <Label className="text-sm">Fecha de Vencimiento *</Label>
+                  <FormFieldWithExtraction
+                    label="Fecha de Vencimiento"
+                    fieldName="fecha_vencimiento"
+                    extractionStatus={extractionStatus}
+                    required
+                  >
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -821,10 +864,14 @@ const DashboardPage = () => {
                         />
                       </PopoverContent>
                     </Popover>
-                  </div>
+                  </FormFieldWithExtraction>
 
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="descripcion">Descripción *</Label>
+                  <FormFieldWithExtraction
+                    label="Descripción"
+                    fieldName="descripcion_factura"
+                    extractionStatus={extractionStatus}
+                    required
+                  >
                     <Textarea
                       id="descripcion"
                       value={formData.descripcion_factura}
@@ -834,7 +881,7 @@ const DashboardPage = () => {
                       required
                       data-testid="dashboard-description-input"
                     />
-                  </div>
+                  </FormFieldWithExtraction>
 
                   <div className="space-y-2 md:col-span-2">
                     <Label>Archivo PDF *</Label>
