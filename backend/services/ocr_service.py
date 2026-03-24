@@ -99,8 +99,8 @@ def extract_invoice_data_with_ocr(file_bytes: bytes) -> Dict[str, Optional[str]]
         
         # Extraer datos específicos usando funciones de patrón
         extracted_data = {
-            'nombre_proveedor': extract_company_name(text),
-            'monto': extract_amount(text),
+            'razon_social': extract_company_name(text),
+            'total': extract_amount(text),
             'folio_fiscal': extract_folio(text),
             'fecha_vencimiento': extract_due_date(text),
             'descripcion_factura': extract_description(text),
@@ -113,8 +113,8 @@ def extract_invoice_data_with_ocr(file_bytes: bytes) -> Dict[str, Optional[str]]
     except Exception as error:
         logger.error(f"Error en extracción de datos: {str(error)}")
         return {
-            'nombre_proveedor': None,
-            'monto': None,
+            'razon_social': None,
+            'total': None,
             'folio_fiscal': None,
             'fecha_vencimiento': None,
             'descripcion_factura': None,
@@ -124,21 +124,31 @@ def extract_invoice_data_with_ocr(file_bytes: bytes) -> Dict[str, Optional[str]]
 
 def extract_company_name(text: str) -> Optional[str]:
     """
-    Extrae nombre de empresa/proveedor del texto OCR
+    Extrae nombre de empresa/proveedor (Razón Social) del texto OCR
     
     Estrategias:
-    1. RFC patrón (10-12 dígitos + caracteres)
-    2. Razón social después de palabras clave
-    3. Primera línea significativa no vacía
+    1. Razón Social (primordial)
+    2. Empresa, Proveedor, etc.
+    3. Línea después de RFC si Razón Social no existe
     """
     try:
-        # Estrategia 1: RFC
-        rfc_match = re.search(r'\b[A-ZÑ&]{3,4}\d{6}[A-V0-9]{3}\b', text, re.IGNORECASE)
-        if rfc_match:
-            return rfc_match.group(0)
+        # Estrategia 1: Razón Social (primordial)
+        patterns_razon_social = [
+            r'[Rr]azón\s+[Ss]ocial[:\s]*([^\n]+)',
+            r'[Rr]azón[:\s]*([^\n]+)',
+            r'[Ee]misy[:\s]*([^\n]+)',  # A veces aparece como "Emissor" o "Emisyente"
+            r'[Ee]misor[:\s]*([^\n]+)',
+        ]
+        
+        for pattern in patterns_razon_social:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                company = match.group(1).strip()
+                if len(company) > 3 and len(company) < 200:
+                    return company
         
         # Estrategia 2: Palabras clave comunes
-        for keyword in ['Razón Social', 'Empresa', 'Proveedor', 'Facturado por', 'Emitida por']:
+        for keyword in ['Empresa', 'Proveedor', 'Facturado por', 'Emitida por']:
             pattern = rf'{keyword}[:\s]*([^\n]+)'
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
@@ -146,33 +156,48 @@ def extract_company_name(text: str) -> Optional[str]:
                 if len(company) > 3:
                     return company
         
-        # Estrategia 3: Primeras líneas (excluir cortas)
-        lines = [line.strip() for line in text.split('\n') if line.strip() and len(line.strip()) > 5]
+        # Estrategia 3: Línea antes de RFC
+        rfc_pattern = r'\b[A-ZÑ&]{3,4}\d{6}[A-V0-9]{3}\b'
+        rfc_match = re.search(rfc_pattern, text)
+        if rfc_match:
+            # Buscar la línea anterior al RFC
+            rfc_position = rfc_match.start()
+            text_before_rfc = text[:rfc_position]
+            lines_before = text_before_rfc.strip().split('\n')
+            if lines_before:
+                last_line = lines_before[-1].strip()
+                if len(last_line) > 3 and len(last_line) < 200:
+                    return last_line
+        
+        # Estrategia 4: Primeras líneas significativas
+        lines = [line.strip() for line in text.split('\n') if line.strip() and len(line.strip()) > 5 and len(line.strip()) < 200]
         if lines:
             return lines[0]
         
         return None
     
     except Exception as e:
-        logger.error(f"Error extrayendo nombre de empresa: {str(e)}")
+        logger.error(f"Error extrayendo razón social: {str(e)}")
         return None
 
 
 def extract_amount(text: str) -> Optional[str]:
     """
-    Extrae monto de la factura
+    Extrae total de la factura
     
     Patrones:
-    1. "Total" o "Monto"
-    2. Formatos de moneda ($ o €)
-    3. Números con decimales
+    1. "Total" (primordial)
+    2. "Monto"
+    3. Formatos de moneda ($ o €)
+    4. Números con decimales
     """
     try:
-        # Estrategia 1: Total/Monto con signo de moneda
+        # Estrategia 1: Total con signo de moneda (primordial)
         patterns = [
-            r'[Tt]otal[:\s]*(?:MX\$|\$|€)\s*([\d,\.]+)',
+            r'[Tt]otal[:\s]*(?:a\s+pagar[:\s]*)?(?:MX\$|\$|€)*\s*([\d,\.]+)',
+            r'[Tt]otal\s+a\s+pagar[:\s]*(?:MX\$|\$|€)*\s*([\d,\.]+)',
+            r'(?:MX\$|\$|€)\s*([\d,\.]+)(?:\s*(?:MX|pesos|EUR|euros))?(?=\n|$)',
             r'[Mm]onto[:\s]*(?:MX\$|\$|€)\s*([\d,\.]+)',
-            r'(?:MX\$|\$|€)\s*([\d,\.]+)(?:\s*(?:MX|pesos|EUR|euros))?(?:\n|$)',
             r'[Aa]l[:\s]*(?:MX\$|\$|€)\s*([\d,\.]+)',
         ]
         
@@ -205,21 +230,37 @@ def extract_folio(text: str) -> Optional[str]:
     """
     Extrae folio/número de factura
     
-    Patrones:
-    1. Número de factura/folio
-    2. UUID o código único
-    3. Folio Fiscal
+    Estrategias (en orden):
+    1. Folio Fiscal (patrón mexicano estándar)
+    2. UUID (Complemento CFDI)
+    3. Factura/Folio con número
     """
     try:
-        # Estrategia 1: Folio Fiscal (patrón mexicano)
-        folio_match = re.search(r'[Ff]olio[:\s]*([A-F0-9\-]{36})', text)  # UUID
-        if folio_match:
-            return folio_match.group(1)
+        # Estrategia 1: Búsqueda directa de "Folio Fiscal"
+        folio_fiscal_pattern = r'[Ff]olio\s+[Ff]iscal[:\s]*([A-F0-9\-]{32,40}|\d+)'
+        match = re.search(folio_fiscal_pattern, text)
+        if match:
+            folio = match.group(1).strip()
+            if folio and len(folio) > 3:
+                return folio
         
-        # Estrategia 2: Factura/Folio con número
+        # Estrategia 2: UUID/Complemento CFDI (36-40 caracteres hexadecimales)
+        uuid_pattern = r'(?:[Uu][Uu][Ii][Dd]|[Uu]uid)[:\s]*([A-F0-9\-]{32,40})'
+        match = re.search(uuid_pattern, text)
+        if match:
+            uuid = match.group(1).strip()
+            if uuid and len(uuid) > 32:
+                return uuid
+        
+        # Estrategia 3: UUID sin prefijo (patrón estándar CFDI: 8-4-4-4-12)
+        uuid_no_prefix = re.search(r'([A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12})', text)
+        if uuid_no_prefix:
+            return uuid_no_prefix.group(1)
+        
+        # Estrategia 4: Factura/Folio con número
         patterns = [
             r'[Ff]actura[:\s#]*(\w+)',
-            r'[Ff]olio[:\s#]*([^\n\s]+)',
+            r'[Ff]olio[:\s#]*([0-9A-Za-z\-]{5,})',
             r'[Nn]úmero[:\s#]*(\w+)',
             r'^[Ff]actura\s*(\d+)\s*$',
         ]

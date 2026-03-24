@@ -605,12 +605,12 @@ const DashboardPage = () => {
         console.log('📨 Datos retornados por extractFromPdf:', data);
         if (data) {
           console.log('🔄 Autocompletando formulario con datos extraídos...');
-          // Autocompletar campos con datos extraídos
+          // Autocompletar campos con datos extraídos (mapear nuevos nombres a campos de forma)
           setFormData(prev => {
             const updatedData = {
               ...prev,
-              nombre_proveedor: data.nombre_proveedor || prev.nombre_proveedor,
-              monto: data.monto || prev.monto,
+              nombre_proveedor: data.razon_social || prev.nombre_proveedor,
+              monto: data.total || prev.monto,
               folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
               fecha_vencimiento: data.fecha_vencimiento 
                 ? new Date(data.fecha_vencimiento)
@@ -623,8 +623,8 @@ const DashboardPage = () => {
 
           // Mostrar notificación
           const filledCount = [
-            data.nombre_proveedor,
-            data.monto,
+            data.razon_social,
+            data.total,
             data.folio_fiscal,
             data.fecha_vencimiento,
             data.descripcion_factura

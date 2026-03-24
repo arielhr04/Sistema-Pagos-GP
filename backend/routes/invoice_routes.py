@@ -524,8 +524,8 @@ def extract_invoice_ocr(
     Extract invoice data from PDF using OCR.
     
     Returns extracted fields:
-    - nombre_proveedor
-    - monto
+    - razon_social
+    - total
     - folio_fiscal
     - fecha_vencimiento
     - descripcion_factura

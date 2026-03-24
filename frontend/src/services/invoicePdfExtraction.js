@@ -12,7 +12,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 /**
  * Extrae datos de factura usando OCR en el backend
  * @param {File} pdfFile - Archivo PDF
- * @returns {Promise<Object>} Datos extraídos {nombre_proveedor, monto, folio_fiscal, fecha_vencimiento, descripcion_factura}
+ * @returns {Promise<Object>} Datos extraídos {razon_social, total, folio_fiscal, fecha_vencimiento, descripcion_factura}
  */
 export const extractInvoiceDataViaOCR = async (pdfFile) => {
   try {
@@ -42,8 +42,8 @@ export const extractInvoiceDataViaOCR = async (pdfFile) => {
     
     console.warn('⚠️ Respuesta del OCR sin estructura de datos esperada');
     return {
-      nombre_proveedor: null,
-      monto: null,
+      razon_social: null,
+      total: null,
       folio_fiscal: null,
       fecha_vencimiento: null,
       descripcion_factura: null,

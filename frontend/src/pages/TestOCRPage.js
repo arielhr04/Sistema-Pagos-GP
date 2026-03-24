@@ -12,8 +12,8 @@ const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 export default function TestOCRPage() {
   const [pdfFile, setPdfFile] = useState(null);
   const [formData, setFormData] = useState({
-    nombre_proveedor: '',
-    monto: '',
+    razon_social: '',
+    total: '',
     folio_fiscal: '',
     fecha_vencimiento: '',
     descripcion_factura: '',
@@ -85,8 +85,8 @@ export default function TestOCRPage() {
       if (response.data && response.data.data) {
         const data = response.data.data;
         addLog('✅ Datos extraídos exitosamente', 'success');
-        addLog(`📦 nombre_proveedor: ${data.nombre_proveedor || '(null)'}`, 'info');
-        addLog(`💰 monto: ${data.monto || '(null)'}`, 'info');
+        addLog(`📦 razon_social: ${data.razon_social || '(null)'}`, 'info');
+        addLog(`💰 total: ${data.total || '(null)'}`, 'info');
         addLog(`📄 folio_fiscal: ${data.folio_fiscal || '(null)'}`, 'info');
         addLog(`📅 fecha_vencimiento: ${data.fecha_vencimiento || '(null)'}`, 'info');
         addLog(`📝 descripcion_factura: ${data.descripcion_factura || '(null)'}`, 'info');
@@ -96,8 +96,8 @@ export default function TestOCRPage() {
         // Autocompletar formulario
         setFormData(prev => ({
           ...prev,
-          nombre_proveedor: data.nombre_proveedor || prev.nombre_proveedor,
-          monto: data.monto || prev.monto,
+          razon_social: data.razon_social || prev.razon_social,
+          total: data.total || prev.total,
           folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
           fecha_vencimiento: data.fecha_vencimiento || prev.fecha_vencimiento,
           descripcion_factura: data.descripcion_factura || prev.descripcion_factura,
@@ -179,11 +179,11 @@ export default function TestOCRPage() {
                 <p className="text-xs font-bold text-green-700 mb-2">✅ DATOS EXTRAÍDOS:</p>
                 <div className="space-y-1 text-xs">
                   <p>
-                    <span className="font-semibold">Proveedor:</span>{' '}
-                    {extractedData.nombre_proveedor || '(vacío)'}
+                    <span className="font-semibold">Razón Social:</span>{' '}
+                    {extractedData.razon_social || '(vacío)'}
                   </p>
                   <p>
-                    <span className="font-semibold">Monto:</span> {extractedData.monto || '(vacío)'}
+                    <span className="font-semibold">Total:</span> {extractedData.total || '(vacío)'}
                   </p>
                   <p>
                     <span className="font-semibold">Folio:</span>{' '}
@@ -205,10 +205,10 @@ export default function TestOCRPage() {
             <div className="space-y-3 pt-4 border-t">
               <p className="text-xs font-bold text-zinc-600">FORMULARIO:</p>
               <div>
-                <Label className="text-xs">Proveedor</Label>
+                <Label className="text-xs">Razón Social</Label>
                 <Input
-                  value={formData.nombre_proveedor}
-                  onChange={(e) => setFormData({ ...formData, nombre_proveedor: e.target.value })}
+                  value={formData.razon_social}
+                  onChange={(e) => setFormData({ ...formData, razon_social: e.target.value })}
                   className="text-sm"
                 />
               </div>
@@ -221,10 +221,10 @@ export default function TestOCRPage() {
                 />
               </div>
               <div>
-                <Label className="text-xs">Monto</Label>
+                <Label className="text-xs">Total</Label>
                 <Input
-                  value={formData.monto}
-                  onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                  value={formData.total}
+                  onChange={(e) => setFormData({ ...formData, total: e.target.value })}
                   className="text-sm"
                 />
               </div>
