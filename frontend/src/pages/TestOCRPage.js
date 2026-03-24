@@ -7,6 +7,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Upload, Copy, Trash2 } from 'lucide-react';
 
+// TestOCRPage usa pdfplumber en el backend via /api/invoices/extract-ocr
+// Lee texto digital del PDF sin conversión a imagen
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 export default function TestOCRPage() {
@@ -50,7 +52,7 @@ export default function TestOCRPage() {
     }
 
     setIsLoading(true);
-    addLog('🔍 Iniciando extracción OCR...', 'info');
+    addLog('🔍 Iniciando extracción con pdfplumber...', 'info');
 
     try {
       const token = localStorage.getItem('token');
@@ -136,7 +138,7 @@ export default function TestOCRPage() {
         {/* FORMULARIO */}
         <Card className="bg-white">
           <CardHeader className="border-b bg-zinc-50">
-            <CardTitle className="text-lg font-bold">🧪 Prueba de OCR</CardTitle>
+            <CardTitle className="text-lg font-bold">🧪 Prueba de pdfplumber</CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
             {/* PDF Upload */}
@@ -170,7 +172,7 @@ export default function TestOCRPage() {
               disabled={!pdfFile || isLoading}
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
-              {isLoading ? '⏳ Extrayendo...' : '🔍 Extraer OCR'}
+              {isLoading ? '⏳ Extrayendo...' : '🔍 Extraer con pdfplumber'}
             </Button>
 
             {/* Datos Extraídos */}

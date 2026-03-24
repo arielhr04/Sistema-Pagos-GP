@@ -1,8 +1,8 @@
 /**
  * Servicio de extracción de datos de facturas PDF
- * Usa OCR en el backend para extraer datos de PDFs reales y escaneados
+ * Usa pdfplumber en el backend para extraer datos directos de PDFs digitales
  * 
- * Backend: Pytesseract con soporte español/inglés
+ * Backend: pdfplumber con soporte para CFDI mexicano
  */
 
 import axios from 'axios';

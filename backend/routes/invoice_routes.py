@@ -551,7 +551,7 @@ def extract_invoice_ocr(
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=500,
-            detail="Tesseract OCR no está instalado. Por favor, instala pytesseract o usa la extracción manual."
+            detail="Error al procesar el PDF. Verifica que el archivo es un PDF válido con texto digital embebido."
         ) from e
     except Exception as e:
         raise HTTPException(
