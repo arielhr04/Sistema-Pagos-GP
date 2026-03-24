@@ -5,7 +5,7 @@
  * Backend: Pytesseract con soporte español/inglés
  */
 
-import { apiClient } from './apiClient';
+import { apiClient } from '../lib/apiClient';
 
 /**
  * Extrae datos de factura usando OCR en el backend
