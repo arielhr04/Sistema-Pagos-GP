@@ -75,26 +75,26 @@ const Layout = () => {
       <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-zinc-950 text-white transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Logo y Título */}
-          <div className="flex flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-8 border-b border-zinc-800 flex-shrink-0">
+          <div className="flex items-center justify-center px-4 sm:px-4 py-4 sm:py-4 border-b border-zinc-800 flex-shrink-0">
             {/* Mobile: Logo grande centrado sin texto */}
             <div className="lg:hidden flex flex-col items-center w-full">
               <img 
                 src="/images/logo.png" 
                 alt="Logo" 
-                className="w-20 h-20 object-contain mb-2"
+                className="w-20 h-20 object-contain"
               />
             </div>
             
-            {/* Desktop: Logo + Título */}
-            <div className="hidden lg:flex lg:flex-col lg:items-center lg:w-full lg:gap-3">
+            {/* Desktop: Logo + Título lado a lado */}
+            <div className="hidden lg:flex lg:items-center lg:gap-4 lg:w-full">
               <img 
                 src="/images/logo.png" 
                 alt="Logo" 
-                className="w-24 h-24 object-contain"
+                className="w-20 h-20 object-contain flex-shrink-0"
               />
-              <div className="text-center">
-                <h1 className="font-bold text-white text-xl leading-tight">Sistema de Administración</h1>
-                <p className="text-sm text-zinc-400">de Facturas</p>
+              <div>
+                <h1 className="font-bold text-white text-lg leading-tight">Sistema de Administración</h1>
+                <p className="text-xs text-zinc-400">de Facturas</p>
               </div>
             </div>
             
