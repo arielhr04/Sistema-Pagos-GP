@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Label } from '@/components/ui/label';
+import { Upload, CheckCircle2 } from 'lucide-react';
+import { Label } from './ui/label';
 
 export function PdfOcrSection({
   pdfFile,
