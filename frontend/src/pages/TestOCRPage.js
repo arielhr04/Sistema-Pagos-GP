@@ -21,6 +21,8 @@ export default function TestOCRPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [logs, setLogs] = useState([]);
   const [extractedData, setExtractedData] = useState(null);
+  const [rawText, setRawText] = useState(''); // NUEVO: Texto bruto del OCR
+  const [debugInfo, setDebugInfo] = useState(null); // NUEVO: Info de debugging
 
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();

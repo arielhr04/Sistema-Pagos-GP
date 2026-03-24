@@ -23,7 +23,8 @@ RUN apt-get update && apt-get install -y \
     apt-transport-https \
     ca-certificates \
     tesseract-ocr \
-    libtesseract-dev
+    libtesseract-dev \
+    poppler-utils
 
 # agregar repositorio Microsoft
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
