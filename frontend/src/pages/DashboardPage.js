@@ -798,6 +798,8 @@ const DashboardPage = () => {
                   <div className="space-y-1.5 sm:space-y-2 sm:col-span-2">
                     <Label className="text-sm">Fecha de Vencimiento *</Label>
                     <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
                           variant="outline"
                           className="w-full justify-start text-left font-normal"
                           data-testid="dashboard-date-btn"
