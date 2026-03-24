@@ -74,21 +74,33 @@ const Layout = () => {
       {/* Sidebar */}
       <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-zinc-950 text-white transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Logo - mejorado */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-5 sm:py-6 border-b border-zinc-800 flex-shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
+          {/* Logo y Título */}
+          <div className="flex flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-8 border-b border-zinc-800 flex-shrink-0">
+            {/* Mobile: Logo grande centrado sin texto */}
+            <div className="lg:hidden flex flex-col items-center w-full">
               <img 
                 src="/images/logo.png" 
                 alt="Logo" 
-                className="w-12 h-12 sm:w-10 sm:h-10 object-contain flex-shrink-0"
+                className="w-20 h-20 object-contain mb-2"
               />
-              <div className="hidden sm:flex flex-col">
-                <span className="font-bold text-white text-sm sm:text-base">GP</span>
-                <span className="text-xs text-zinc-400 leading-tight">Pagos</span>
+            </div>
+            
+            {/* Desktop: Logo + Título */}
+            <div className="hidden lg:flex lg:flex-col lg:items-center lg:w-full lg:gap-3">
+              <img 
+                src="/images/logo.png" 
+                alt="Logo" 
+                className="w-24 h-24 object-contain"
+              />
+              <div className="text-center">
+                <h1 className="font-bold text-white text-xl leading-tight">Sistema de Administración</h1>
+                <p className="text-sm text-zinc-400">de Facturas</p>
               </div>
             </div>
+            
+            {/* Botón cerrar mobile */}
             <button 
-              className="lg:hidden text-zinc-400 hover:text-white p-1 flex-shrink-0"
+              className="lg:hidden absolute top-6 right-4 text-zinc-400 hover:text-white p-1 flex-shrink-0"
               onClick={() => setSidebarOpen(false)}
               aria-label="Cerrar menú"
             >
