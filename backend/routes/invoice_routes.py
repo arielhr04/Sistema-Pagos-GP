@@ -41,6 +41,7 @@ from backend.db.session import get_db
 from backend.models.invoice import Invoice
 from backend.models.area import Area
 from backend.models.user import User
+from backend.models.supervisor_empresa import SupervisorEmpresa
 
 router = APIRouter(prefix="/api", tags=["Invoices"])
 logger = logging.getLogger(__name__)
@@ -50,10 +51,10 @@ logger = logging.getLogger(__name__)
 def create_invoice(
     nombre_proveedor: str = Form(...),
     descripcion_factura: str = Form(...),
-    area_procedencia: str = Form(...),
     monto: float = Form(...),
     fecha_vencimiento: str = Form(...),
     folio_fiscal: str = Form(...),
+    requiere_autorizacion: bool = Form(default=False),
     pdf_file: UploadFile = File(...),
     xml_file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
@@ -64,11 +65,14 @@ def create_invoice(
         descripcion_factura = sanitize_text(
             descripcion_factura, "descripcion_factura", max_length=1024, allow_multiline=True,
         ) or descripcion_factura
-        area_procedencia = validate_uuid_value(area_procedencia, "area_procedencia", required=True) or area_procedencia
         fecha_vencimiento = validate_iso_date(fecha_vencimiento, "fecha_vencimiento", required=True) or fecha_vencimiento
         folio_fiscal = sanitize_text(folio_fiscal, "folio_fiscal", max_length=255) or folio_fiscal
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Validar que el usuario tiene empresa asignada
+    if not current_user.empresa_id:
+        raise HTTPException(status_code=403, detail="El usuario no tiene empresa asignada")
 
     # Validar PDF (tamaño, extensión, vacío) - requerido
     content = validate_pdf_upload(pdf_file)
@@ -118,15 +122,23 @@ def create_invoice(
     compressed_pdf = compress_pdf_safe(content, "PDF de factura")
     now = utc_now()
 
+    # Determinar estado inicial según requiere_autorizacion
+    estado_inicial = (
+        InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value
+        if requiere_autorizacion
+        else InvoiceStatusEnum.CAPTURADA.value
+    )
+
     try:
         invoice_obj = Invoice(
             nombre_proveedor=nombre_proveedor,
             descripcion_factura=descripcion_factura,
-            area_procedencia=area_procedencia,
+            empresa_factura=current_user.empresa_id,
             monto=monto,
             fecha_vencimiento=fecha_vencimiento,
             folio_fiscal=folio_fiscal,
-            estatus=InvoiceStatusEnum.CAPTURADA.value,
+            estatus=estado_inicial,
+            requiere_autorizacion=requiere_autorizacion,
             fecha_pago_real=None,
             created_by=current_user.id,
             created_at=now,
@@ -139,16 +151,16 @@ def create_invoice(
         db.refresh(invoice_obj)
 
         # Log movement
-        log_movement(db, invoice_obj.id, current_user.id, "", InvoiceStatusEnum.CAPTURADA.value)
+        log_movement(db, invoice_obj.id, current_user.id, "", estado_inicial)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al crear factura: {str(e)}")
 
-    area_obj = db.query(Area).filter(Area.id == invoice_obj.area_procedencia).first()
+    empresa_obj = db.query(Area).filter(Area.id == invoice_obj.empresa_factura).first()
 
     return build_invoice_response(
         invoice_obj,
-        area_nombre=area_obj.nombre if area_obj else None,
+        empresa_nombre=empresa_obj.nombre if empresa_obj else None,
         created_by_nombre=current_user.nombre,
     )
 
@@ -174,7 +186,7 @@ def get_invoices(
     if estatus:
         query = query.filter(Invoice.estatus == estatus)
     if area:
-        query = query.filter(Invoice.area_procedencia == area)
+        query = query.filter(Invoice.empresa_factura == area)
     if created_by:
         query = query.filter(Invoice.created_by == created_by)
     if search:
@@ -214,7 +226,7 @@ def get_invoices(
     items = [
         build_invoice_response(
             inv,
-            area_nombre=areas.get(inv.area_procedencia),
+            empresa_nombre=areas.get(inv.empresa_factura),
             created_by_nombre=users.get(inv.created_by),
             fecha_revision_tesoreria=review_dates.get(inv.id),
             comprobante_pago_subido=inv.id in proof_invoice_ids,
@@ -236,7 +248,7 @@ def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user),
     if not inv:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    area_obj = db.query(Area).filter(Area.id == inv.area_procedencia).first()
+    empresa_obj = db.query(Area).filter(Area.id == inv.empresa_factura).first()
     user_obj = db.query(User).filter(User.id == inv.created_by).first()
 
     treasury_review = get_first_treasury_review(db, invoice_id)
@@ -244,7 +256,7 @@ def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user),
 
     return build_invoice_response(
         inv,
-        area_nombre=area_obj.nombre if area_obj else None,
+        empresa_nombre=empresa_obj.nombre if empresa_obj else None,
         created_by_nombre=user_obj.nombre if user_obj else None,
         fecha_revision_tesoreria=to_iso_string(treasury_review.fecha_cambio) if treasury_review else None,
         comprobante_pago_subido=proof_uploaded,
@@ -498,7 +510,7 @@ def export_invoices_excel(
     if estatus:
         query = query.filter(Invoice.estatus == estatus)
     if area:
-        query = query.filter(Invoice.area_procedencia == area)
+        query = query.filter(Invoice.empresa_factura == area)
     if created_by:
         query = query.filter(Invoice.created_by == created_by)
     if search:
@@ -538,7 +550,7 @@ def export_invoices_excel(
             inv.id,
             inv.folio_fiscal,
             inv.nombre_proveedor,
-            areas.get(inv.area_procedencia),
+            areas.get(inv.empresa_factura),
             inv.monto,
             inv.estatus,
             inv.fecha_vencimiento,
@@ -586,3 +598,226 @@ def extract_invoice_xml(
     except Exception as e:
         logger.error(f"Error procesando XML: {str(e)}")
         raise HTTPException(status_code=500, detail="Error al procesar el archivo XML")
+
+
+@router.post("/invoices/{invoice_id}/supervisor/approve", response_model=InvoiceResponse)
+def supervisor_approve_invoice(
+    invoice_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Endpoint para que un supervisor apruebe una factura.
+    La factura cambia de "Pendiente de Autorización" a "Capturada"
+    """
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    # Validar que es "Pendiente de Autorización"
+    if invoice.estatus != InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La factura debe estar en 'Pendiente de Autorización' para ser aprobada. Estado actual: {invoice.estatus}"
+        )
+
+    # Validar que el usuario es supervisor de esta empresa
+    supervisor_check = db.query(SupervisorEmpresa).filter(
+        SupervisorEmpresa.supervisor_id == current_user.id,
+        SupervisorEmpresa.empresa_id == invoice.empresa_factura
+    ).first()
+    
+    if not supervisor_check:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para aprobar facturas de esta empresa"
+        )
+
+    try:
+        old_status = invoice.estatus
+        invoice.estatus = InvoiceStatusEnum.CAPTURADA.value
+        invoice.aprobada_por_supervisor = True
+        invoice.supervisor_id = current_user.id
+        invoice.fecha_aprobacion_supervisor = utc_now()
+        invoice.updated_at = utc_now()
+        
+        db.commit()
+        db.refresh(invoice)
+
+        # Log movement
+        log_movement(db, invoice_id, current_user.id, old_status, InvoiceStatusEnum.CAPTURADA.value)
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al aprobar factura: {str(e)}")
+
+    empresa_obj = db.query(Area).filter(Area.id == invoice.empresa_factura).first()
+    supervisor_obj = db.query(User).filter(User.id == invoice.supervisor_id).first()
+
+    return build_invoice_response(
+        invoice,
+        empresa_nombre=empresa_obj.nombre if empresa_obj else None,
+        supervisor_nombre=supervisor_obj.nombre if supervisor_obj else None,
+        created_by_nombre=db.query(User).filter(User.id == invoice.created_by).first().nombre,
+    )
+
+
+@router.post("/invoices/{invoice_id}/supervisor/reject", response_model=InvoiceResponse)
+def supervisor_reject_invoice(
+    invoice_id: str,
+    comentario: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Endpoint para que un supervisor rechace una factura.
+    La factura cambia a "Rechazada por Supervisor" y se guarda el comentario
+    """
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    # Validar que es "Pendiente de Autorización"
+    if invoice.estatus != InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La factura debe estar en 'Pendiente de Autorización' para ser rechazada. Estado actual: {invoice.estatus}"
+        )
+
+    # Validar que el usuario es supervisor de esta empresa
+    supervisor_check = db.query(SupervisorEmpresa).filter(
+        SupervisorEmpresa.supervisor_id == current_user.id,
+        SupervisorEmpresa.empresa_id == invoice.empresa_factura
+    ).first()
+    
+    if not supervisor_check:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para rechazar facturas de esta empresa"
+        )
+
+    try:
+        old_status = invoice.estatus
+        invoice.estatus = InvoiceStatusEnum.RECHAZADA_SUPERVISOR.value
+        invoice.supervisor_id = current_user.id
+        invoice.fecha_aprobacion_supervisor = utc_now()
+        invoice.updated_at = utc_now()
+        
+        db.commit()
+        db.refresh(invoice)
+
+        # Log movement
+        log_movement(db, invoice_id, current_user.id, old_status, InvoiceStatusEnum.RECHAZADA_SUPERVISOR.value)
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al rechazar factura: {str(e)}")
+
+    empresa_obj = db.query(Area).filter(Area.id == invoice.empresa_factura).first()
+    supervisor_obj = db.query(User).filter(User.id == invoice.supervisor_id).first()
+
+    return build_invoice_response(
+        invoice,
+        empresa_nombre=empresa_obj.nombre if empresa_obj else None,
+        supervisor_nombre=supervisor_obj.nombre if supervisor_obj else None,
+        created_by_nombre=db.query(User).filter(User.id == invoice.created_by).first().nombre,
+    )
+
+
+@router.get("/invoices/supervisor/pending", response_model=list)
+def get_supervisor_pending_invoices(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Obtiene todas las facturas pendientes de aprobación para las empresas supervisadas por el usuario.
+    """
+    # Obtener las empresas que supervisa este usuario
+    supervisor_empresas = db.query(SupervisorEmpresa).filter(
+        SupervisorEmpresa.supervisor_id == current_user.id
+    ).all()
+    
+    if not supervisor_empresas:
+        return []
+    
+    empresa_ids = [se.empresa_id for se in supervisor_empresas]
+    
+    # Obtener facturas pendientes de aprobación en esas empresas
+    facturas_pendientes = db.query(Invoice).filter(
+        Invoice.empresa_factura.in_(empresa_ids),
+        Invoice.estatus == InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value
+    ).order_by(Invoice.fecha_vencimiento.asc(), Invoice.created_at.asc()).offset(offset).limit(limit).all()
+    
+    # Precargar datos relacionados
+    empresa_ids_set = set(se.empresa_id for se in supervisor_empresas)
+    empresas = {a.id: a.nombre for a in db.query(Area).filter(Area.id.in_(empresa_ids_set)).all()}
+    usuarios = {u.id: u.nombre for u in db.query(User).filter(User.id.in_([f.created_by for f in facturas_pendientes])).all()}
+    
+    # Construir respuestas
+    respuestas = []
+    for inv in facturas_pendientes:
+        respuestas.append(
+            build_invoice_response(
+                inv,
+                empresa_nombre=empresas.get(inv.empresa_factura),
+                created_by_nombre=usuarios.get(inv.created_by),
+            )
+        )
+    
+    return respuestas
+
+
+@router.get("/invoices/supervisor/stats")
+def get_supervisor_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Estadísticas para dashboard supervisor: conteos por estado.
+    """
+    # Obtener las empresas que supervisa
+    supervisor_empresas = db.query(SupervisorEmpresa).filter(
+        SupervisorEmpresa.supervisor_id == current_user.id
+    ).all()
+    
+    if not supervisor_empresas:
+        return {
+            "pendientes": 0,
+            "aprobadas_hoy": 0,
+            "rechazadas": 0,
+            "total_empresas_supervisadas": 0,
+        }
+    
+    empresa_ids = [se.empresa_id for se in supervisor_empresas]
+    
+    # Contar pendientes
+    pendientes = db.query(Invoice).filter(
+        Invoice.empresa_factura.in_(empresa_ids),
+        Invoice.estatus == InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value
+    ).count()
+    
+    # Contar aprobadas hoy
+    hoy = utc_now().date().isoformat()
+    aprobadas_hoy = db.query(Invoice).filter(
+        Invoice.empresa_factura.in_(empresa_ids),
+        Invoice.estatus == InvoiceStatusEnum.CAPTURADA.value,
+        Invoice.aprobada_por_supervisor == True,
+        Invoice.supervisor_id == current_user.id,
+        Invoice.fecha_aprobacion_supervisor >= hoy,
+    ).count()
+    
+    # Contar rechazadas
+    rechazadas = db.query(Invoice).filter(
+        Invoice.empresa_factura.in_(empresa_ids),
+        Invoice.estatus == InvoiceStatusEnum.RECHAZADA_SUPERVISOR.value,
+        Invoice.supervisor_id == current_user.id,
+    ).count()
+    
+    return {
+        "pendientes": pendientes,
+        "aprobadas_hoy": aprobadas_hoy,
+        "rechazadas": rechazadas,
+        "total_empresas_supervisadas": len(empresa_ids),
+    }

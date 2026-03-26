@@ -11,6 +11,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
+import { Checkbox } from '../components/ui/checkbox';
 import FormFieldWithExtraction from '../components/FormFieldWithExtraction';
 import { PdfOcrSection } from '../components/PdfOcrSection';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
@@ -185,17 +186,25 @@ const DashboardPage = () => {
   const [formData, setFormData] = useState({
     nombre_proveedor: '',
     descripcion_factura: '',
-    area_procedencia: '',
     monto: '',
     fecha_vencimiento: null,
     folio_fiscal: '',
+    requiere_autorizacion: false,
   });
   const [pdfFile, setPdfFile] = useState(null);
   const [xmlFile, setXmlFile] = useState(null);
+  const [supervisorPendingInvoices, setSupervisorPendingInvoices] = useState([]);
+  const [supervisorStats, setSupervisorStats] = useState(null);
+  const [supervisorLoading, setSupervisorLoading] = useState(true);
+  const [supervisorActionInvoiceId, setSupervisorActionInvoiceId] = useState(null);
+  const [supervisorActionType, setSupervisorActionType] = useState(null); // 'approve' or 'reject'
+  const [rejectComment, setRejectComment] = useState('');
+  const [showSupervisorRejectDialog, setShowSupervisorRejectDialog] = useState(false);
   const { extractedData, extractionStatus, isExtracting, extractFromXml, clearExtraction } = useInvoiceExtraction();
 
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
+  const isSupervisor = user?.rol === 'Supervisor';
   const canRegisterInvoices = user?.rol === 'Usuario Área' || user?.rol === 'Administrador';
 
   // Helpers compartidos de validación y configuración HTTP
@@ -250,9 +259,6 @@ const DashboardPage = () => {
       try {
         await new Promise((resolve) => setTimeout(resolve, 100));
         setAreas(demoData.areas.items || []);
-        if (user?.area_id && demoData.areas.items && demoData.areas.items.length > 0) {
-          setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
-        }
         return;
       } catch (error) {
         console.error('Error loading demo areas:', error);
@@ -267,19 +273,12 @@ const DashboardPage = () => {
 
     if (hasCachedAreas) {
       setAreas(cachedAreas);
-      if (user?.area_id && cachedAreas.length > 0) {
-        setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
-      }
     }
 
     try {
       const response = await axios.get(`${API_URL}/api/areas`, getAuthHeader());
       setAreas(response.data);
       writeApiCache(areasCacheKey, response.data);
-
-      if (user?.area_id && response.data.length > 0) {
-        setFormData(prev => ({ ...prev, area_procedencia: user.area_id }));
-      }
     } catch (error) {
       console.error('❌ Error fetching areas:', error);
       if (!hasCachedAreas) {
@@ -594,9 +593,77 @@ const DashboardPage = () => {
     setLoading(false);
   }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices, user?.id, user?.email, demoMode, demoData]);
 
+  const fetchSupervisorPendingInvoices = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/invoices/supervisor/pending?limit=20`, getAuthHeader());
+      setSupervisorPendingInvoices(response.data);
+    } catch (error) {
+      console.error('Error fetching supervisor pending invoices:', error);
+      toast.error('Error al cargar facturas pendientes');
+    } finally {
+      setSupervisorLoading(false);
+    }
+  }, [getAuthHeader]);
+
+  const fetchSupervisorStats = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/invoices/supervisor/stats`, getAuthHeader());
+      setSupervisorStats(response.data);
+    } catch (error) {
+      console.error('Error fetching supervisor stats:', error);
+    }
+  }, [getAuthHeader]);
+
+  const handleSupervisorApprove = useCallback(async (invoiceId) => {
+    try {
+      setUpdating(true);
+      await axios.post(`${API_URL}/api/invoices/${invoiceId}/supervisor/approve`, {}, getAuthHeader());
+      toast.success('Factura aprobada exitosamente');
+      await fetchSupervisorPendingInvoices();
+      await fetchSupervisorStats();
+      setSelectedInvoice(null);
+      setDialogOpen(false);
+    } catch (error) {
+      console.error('Error approving invoice:', error);
+      toast.error(`Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  }, [getAuthHeader, fetchSupervisorPendingInvoices, fetchSupervisorStats]);
+
+  const handleSupervisorReject = useCallback(async (invoiceId) => {
+    try {
+      setUpdating(true);
+      await axios.post(
+        `${API_URL}/api/invoices/${invoiceId}/supervisor/reject`,
+        { comentario: rejectComment },
+        getAuthHeader()
+      );
+      toast.success('Factura rechazada');
+      setRejectComment('');
+      setShowSupervisorRejectDialog(false);
+      await fetchSupervisorPendingInvoices();
+      await fetchSupervisorStats();
+      setSelectedInvoice(null);
+      setDialogOpen(false);
+    } catch (error) {
+      console.error('Error rejecting invoice:', error);
+      toast.error(`Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  }, [getAuthHeader, rejectComment, fetchSupervisorPendingInvoices, fetchSupervisorStats]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (isSupervisor) {
+      fetchSupervisorPendingInvoices();
+      fetchSupervisorStats();
+    }
+  }, [isSupervisor, fetchSupervisorPendingInvoices, fetchSupervisorStats]);
 
   // Extracción automática de datos cuando se carga un PDF
   useEffect(() => {
@@ -694,10 +761,10 @@ const DashboardPage = () => {
     setFormData({
       nombre_proveedor: '',
       descripcion_factura: '',
-      area_procedencia: user?.area_id || '',
       monto: '',
       fecha_vencimiento: null,
       folio_fiscal: '',
+      requiere_autorizacion: false,
     });
     setPdfFile(null);
     setXmlFile(null);
@@ -723,8 +790,8 @@ const DashboardPage = () => {
       return;
     }
 
-    if (!formData.area_procedencia) {
-      toast.error('Debe seleccionar un área');
+    if (!formData.nombre_proveedor || !formData.monto || !formData.fecha_vencimiento) {
+      toast.error('Por favor completa los campos obligatorios');
       return;
     }
 
@@ -734,10 +801,10 @@ const DashboardPage = () => {
       const data = new FormData();
       data.append('nombre_proveedor', formData.nombre_proveedor);
       data.append('descripcion_factura', formData.descripcion_factura);
-      data.append('area_procedencia', formData.area_procedencia);
       data.append('monto', formData.monto);
       data.append('fecha_vencimiento', format(formData.fecha_vencimiento, 'yyyy-MM-dd'));
       data.append('folio_fiscal', formData.folio_fiscal);
+      data.append('requiere_autorizacion', formData.requiere_autorizacion);
       data.append('pdf_file', pdfFile);
       if (xmlFile) {
         data.append('xml_file', xmlFile);
@@ -854,21 +921,20 @@ const DashboardPage = () => {
 
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="area" className="text-sm">Área *</Label>
-                    <Select
-                      value={formData.area_procedencia}
-                      onValueChange={(value) => setFormData({ ...formData, area_procedencia: value })}
-                    >
-                      <SelectTrigger data-testid="dashboard-area-select" className="text-base">
-                        <SelectValue placeholder="Seleccionar área" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {areas.map((area) => (
-                          <SelectItem key={area.id} value={area.id}>
-                            {area.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
+                      {areas.find(a => a.id === user?.area_id)?.nombre || 'Cargando...'}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-md">
+                    <Checkbox
+                      id="requiere_autorizacion"
+                      checked={formData.requiere_autorizacion}
+                      onCheckedChange={(checked) => setFormData({ ...formData, requiere_autorizacion: checked })}
+                    />
+                    <Label htmlFor="requiere_autorizacion" className="text-sm cursor-pointer">
+                      Esta factura requiere aprobación del supervisor
+                    </Label>
                   </div>
 
                   <FormFieldWithExtraction
@@ -1212,6 +1278,228 @@ const DashboardPage = () => {
     );
   }
 
+  // Dashboard for Supervisor
+  if (isSupervisor) {
+    return (
+      <div className="space-y-6 animate-fade-in" data-testid="supervisor-dashboard">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
+              Panel de Supervisor
+            </h1>
+            <p className="text-zinc-500 mt-1">Aprobación de facturas supervisadas</p>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            title="Facturas Pendientes"
+            value={supervisorStats?.pendientes || 0}
+            subtitle="Esperando aprobación"
+            icon={FileText}
+            color="zinc"
+          />
+          <StatCard
+            title="Aprobadas Hoy"
+            value={supervisorStats?.aprobadas_hoy || 0}
+            subtitle="Procesadas hoy"
+            icon={CheckCircle}
+            color="green"
+          />
+          <StatCard
+            title="Rechazadas"
+            value={supervisorStats?.rechazadas || 0}
+            subtitle="No aprobadas"
+            icon={AlertTriangle}
+            color="red"
+          />
+          <StatCard
+            title="Empresas a Supervisar"
+            value={supervisorStats?.total_empresas_supervisadas || 0}
+            subtitle="Total de empresas"
+            icon={DollarSign}
+            color="yellow"
+          />
+        </div>
+
+        {/* Pending Invoices Table */}
+        <Card className="bg-white border border-zinc-200">
+          <CardHeader className="border-b border-zinc-100 bg-zinc-50/50">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <FileText className="w-5 h-5 text-red-600" />
+              Facturas Pendientes de Aprobación
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            {supervisorLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-red-600/30 border-t-red-600 rounded-full animate-spin" />
+              </div>
+            ) : supervisorPendingInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-zinc-500">
+                <CheckCircle className="w-12 h-12 mb-3 text-zinc-300" />
+                <p className="font-medium">No hay facturas pendientes</p>
+                <p className="text-sm">Todas las facturas están al día</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {supervisorPendingInvoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="p-4 bg-zinc-50 rounded-lg border border-zinc-100 hover:bg-zinc-100 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedInvoice(invoice);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-zinc-900 truncate">
+                          {invoice.nombre_proveedor}
+                        </p>
+                        <p className="text-xs text-zinc-500 font-mono mt-0.5">
+                          {invoice.folio_fiscal}
+                        </p>
+                        <p className="text-xs text-zinc-600 mt-1">
+                          Empresa: <span className="font-medium">{invoice.empresa_nombre}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-200">
+                          Pendiente
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-100">
+                      <span className="font-bold text-zinc-900 font-mono">{formatCurrency(invoice.monto)}</span>
+                      <span className="text-xs text-zinc-500">Vence: {invoice.fecha_vencimiento?.slice(0, 10)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Invoice Detail Dialog with Action Buttons */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold font-[Chivo]">
+                Detalle de Factura
+              </DialogTitle>
+              <DialogDescription>
+                Revisión y control de facturas pendientes de aprobación
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedInvoice && (
+              <div className="space-y-4">
+                <InvoiceInfoGrid invoice={selectedInvoice} formatCurrency={formatCurrency} showStatus={true} statusStyles={STATUS_STYLES} />
+
+                {/* Supervisor Action Buttons */}
+                {selectedInvoice.estatus === 'Pendiente de Autorización' && (
+                  <div className="space-y-3">
+                    <div className="border-t border-zinc-200 pt-4">
+                      <p className="text-sm font-medium text-zinc-900 mb-3">Acción requerida:</p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => handleSupervisorApprove(selectedInvoice.id)}
+                          disabled={updating}
+                        >
+                          {updating ? 'Procesando...' : 'Aprobar'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1 border-red-200 hover:bg-red-50 text-red-600"
+                          onClick={() => {
+                            setShowSupervisorRejectDialog(true);
+                          }}
+                          disabled={updating}
+                        >
+                          Rechazar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show approval status if already processed */}
+                {selectedInvoice.aprobada_por_supervisor && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-green-800">
+                      <span className="font-medium">Aprobada por:</span> {selectedInvoice.supervisor_nombre}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      {selectedInvoice.fecha_aprobacion_supervisor}
+                    </p>
+                  </div>
+                )}
+
+                {selectedInvoice.estatus === 'Rechazada por Supervisor' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-800">
+                      <span className="font-medium">Rechazada por:</span> {selectedInvoice.supervisor_nombre}
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {selectedInvoice.fecha_aprobacion_supervisor}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Reject Confirmation Dialog */}
+        <Dialog open={showSupervisorRejectDialog} onOpenChange={setShowSupervisorRejectDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Rechazar Factura</DialogTitle>
+              <DialogDescription>
+                Por favor, indique el motivo del rechazo
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="reject-comment">Comentario (opcional)</Label>
+                <Textarea
+                  id="reject-comment"
+                  value={rejectComment}
+                  onChange={(e) => setRejectComment(e.target.value)}
+                  placeholder="Especifique los motivos del rechazo..."
+                  rows={4}
+                  className="mt-2"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowSupervisorRejectDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => handleSupervisorReject(selectedInvoice.id)}
+                  disabled={updating}
+                >
+                  {updating ? 'Procesando...' : 'Confirmar Rechazo'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   // Dashboard for Admin/Tesorero
   return (
     <div className="space-y-6 animate-fade-in" data-testid="admin-dashboard">
@@ -1227,10 +1515,10 @@ const DashboardPage = () => {
             setFormData({
               nombre_proveedor: '',
               folio_fiscal: '',
-              area_procedencia: '',
               monto: '',
               fecha_vencimiento: null,
               descripcion_factura: '',
+              requiere_autorizacion: false,
             });
             setPdfFile(null);
             setShowRegisterFormDialog(true);
@@ -1463,21 +1751,9 @@ const DashboardPage = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="area_reg">Área *</Label>
-                  <Select
-                    value={formData.area_procedencia}
-                    onValueChange={(value) => setFormData({ ...formData, area_procedencia: value })}
-                  >
-                    <SelectTrigger id="area_reg">
-                      <SelectValue placeholder="Seleccionar área" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {areas.map((area) => (
-                        <SelectItem key={area.id} value={area.id}>
-                          {area.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
+                    {areas.find(a => a.id === user?.area_id)?.nombre || 'Cargando...'}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="monto_reg">Monto *</Label>

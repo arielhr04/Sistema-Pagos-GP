@@ -19,7 +19,7 @@ class User(Base):
     password = Column(String(255), nullable=False)
     nombre = Column(String(255), nullable=False)
     rol = Column(String(50), nullable=False)
-    area_id = Column(String(36), ForeignKey("tesoreriapp_gp_areas.id"), nullable=True)
+    empresa_id = Column(String(36), ForeignKey("tesoreriapp_gp_empresas.id"), nullable=True)
     activo = Column(Boolean, default=True, nullable=False)
     tour_completed = Column(Boolean, default=False, nullable=False, server_default="0")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -29,11 +29,12 @@ class User(Base):
     __table_args__ = (
         Index('idx_user_email', 'email'),
         Index('idx_user_rol', 'rol'),
-        Index('idx_user_area_id', 'area_id'),
+        Index('idx_user_empresa_id', 'empresa_id'),
         Index('idx_user_activo', 'activo'),
     )
 
-    area = relationship("Area", back_populates="users")
+    empresa = relationship("Area", back_populates="usuarios")
+    empresas_supervisadas = relationship("SupervisorEmpresa", back_populates="supervisor")
     invoices = relationship("Invoice", back_populates="creator")
     movements = relationship("MovementHistory", back_populates="usuario")
     login_audits = relationship("LoginAudit", back_populates="usuario")

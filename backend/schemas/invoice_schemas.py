@@ -6,10 +6,10 @@ from backend.core.input_validation import sanitize_text, validate_iso_date, vali
 class InvoiceCreate(BaseModel):
     nombre_proveedor: str = Field(..., max_length=255)
     descripcion_factura: str = Field(..., max_length=1024)
-    area_procedencia: str
     monto: float
     fecha_vencimiento: str
     folio_fiscal: str = Field(..., max_length=255)
+    requiere_autorizacion: bool = Field(default=False, description="¿Esta factura requiere aprobación del supervisor?")
 
     @field_validator("nombre_proveedor")
     @classmethod
@@ -26,12 +26,6 @@ class InvoiceCreate(BaseModel):
     def validate_folio_fiscal(cls, value: str) -> str:
         return sanitize_text(value, "folio_fiscal", max_length=255)
 
-    @field_validator("area_procedencia")
-    @classmethod
-    def validate_area_procedencia(cls, value: str) -> str:
-        validated = validate_uuid_value(value, "area_procedencia", required=True)
-        return validated or value
-
     @field_validator("fecha_vencimiento")
     @classmethod
     def validate_fecha_vencimiento(cls, value: str) -> str:
@@ -42,8 +36,8 @@ class InvoiceResponse(BaseModel):
     id: str
     nombre_proveedor: str
     descripcion_factura: str
-    area_procedencia: str
-    area_nombre: Optional[str] = None
+    empresa_factura: str
+    empresa_nombre: Optional[str] = None
     monto: float
     fecha_vencimiento: str
     folio_fiscal: str
@@ -54,6 +48,11 @@ class InvoiceResponse(BaseModel):
     created_by_nombre: Optional[str] = None
     revisada_por_tesoreria: bool = False
     fecha_revision_tesoreria: Optional[str] = None
+    requiere_autorizacion: bool
+    aprobada_por_supervisor: bool
+    supervisor_id: Optional[str] = None
+    supervisor_nombre: Optional[str] = None
+    fecha_aprobacion_supervisor: Optional[str] = None
     created_at: str
     updated_at: str
 

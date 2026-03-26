@@ -10,7 +10,8 @@ def generate_uuid() -> str:
 
 
 class Area(Base):
-    __tablename__ = "tesoreriapp_gp_areas"
+    """Representa una Empresa/Unidad de negocio"""
+    __tablename__ = "tesoreriapp_gp_empresas"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     nombre = Column(String(255), nullable=False)
@@ -18,8 +19,9 @@ class Area(Base):
 
     # Índices para búsquedas
     __table_args__ = (
-        Index('idx_area_nombre', 'nombre'),
+        Index('idx_empresa_nombre', 'nombre'),
     )
 
-    users = relationship("User", back_populates="area")
-    invoices = relationship("Invoice", back_populates="area")
+    usuarios = relationship("User", back_populates="empresa")
+    invoices = relationship("Invoice", back_populates="empresa")
+    supervisores = relationship("SupervisorEmpresa", back_populates="empresa")

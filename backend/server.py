@@ -25,6 +25,7 @@ from backend.models.area import Area
 from backend.models.invoice import Invoice
 from backend.models.movement import MovementHistory
 from backend.models.login_audit import LoginAudit
+from backend.models.supervisor_empresa import SupervisorEmpresa
 
 # Logging
 logging.basicConfig(
@@ -118,8 +119,19 @@ async def lifespan(app: FastAPI):
                 User(id=str(uuid4()), email="usuario@sistema.com", password=hash_password("usuario123"),
                      nombre="Usuario de Área", rol=RoleEnum.USUARIO_AREA.value,
                      area_id=areas[1].id, activo=True, created_at=now, updated_at=now),
+                User(id=str(uuid4()), email="supervisor@sistema.com", password=hash_password("supervisor123"),
+                     nombre="Supervisor de Finanzas", rol=RoleEnum.SUPERVISOR.value,
+                     area_id=None, activo=True, created_at=now, updated_at=now),
             ]
             db.add_all(users)
+            db.flush()
+
+            # Crear relación supervisor-empresa: supervisa Finanzas y Operaciones
+            supervisor_rel = [
+                SupervisorEmpresa(id=str(uuid4()), supervisor_id=users[3].id, empresa_id=areas[0].id, created_at=now),
+                SupervisorEmpresa(id=str(uuid4()), supervisor_id=users[3].id, empresa_id=areas[1].id, created_at=now),
+            ]
+            db.add_all(supervisor_rel)
             db.commit()
             logger.info("Seed completado: %s usuarios creados", len(users))
         else:
