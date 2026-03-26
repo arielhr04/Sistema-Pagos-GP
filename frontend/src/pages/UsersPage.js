@@ -54,6 +54,7 @@ const ROLE_STYLES = {
   'Administrador': 'bg-red-100 text-red-700 border-red-200',
   'Tesorero': 'bg-blue-100 text-blue-700 border-blue-200',
   'Usuario Área': 'bg-zinc-100 text-zinc-700 border-zinc-200',
+  'Supervisor': 'bg-purple-100 text-purple-700 border-purple-200',
 };
 
 const UsersPage = () => {
@@ -422,6 +423,7 @@ const UsersPage = () => {
                       <SelectItem value="Administrador">Administrador</SelectItem>
                       <SelectItem value="Tesorero">Tesorero</SelectItem>
                       <SelectItem value="Usuario Área">Usuario Área</SelectItem>
+                      <SelectItem value="Supervisor">Supervisor</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
