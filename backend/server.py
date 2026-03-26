@@ -40,30 +40,51 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Iniciando aplicación...")
+    logger.info("🔵 [STARTUP] Iniciando aplicación...")
+    logger.info(f"🔵 [STARTUP] IS_PRODUCTION: {IS_PRODUCTION}")
+
+    try:
+        # Verificar conexión a BD
+        with engine.connect() as conn:
+            logger.info("✅ [DB] Conexión a base de datos exitosa")
+    except Exception as e:
+        logger.error(f"❌ [DB] Error al conectar a la base de datos: {e}")
+        raise
 
     # Crear tablas
-    Base.metadata.create_all(bind=engine)
-    logger.info("Tablas de base de datos creadas/verificadas")
+    try:
+        logger.info("🔵 [STARTUP] Creando/verificando tablas...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ [DB] Tablas de base de datos creadas/verificadas")
+    except Exception as e:
+        logger.error(f"❌ [DB] Error al crear tablas: {e}")
+        raise
 
     # Migrar esquema: agregar columnas nuevas a tablas existentes
     try:
+        logger.info("🔵 [SCHEMA] Iniciando migración de esquema...")
         from sqlalchemy import inspect, text as sa_text
         inspector = inspect(engine)
         users_table = "tesoreriapp_gp_users"
         if inspector.has_table(users_table):
             existing_cols = {c["name"] for c in inspector.get_columns(users_table)}
+            logger.info(f"🔵 [SCHEMA] Columnas existentes en {users_table}: {existing_cols}")
             if "tour_completed" not in existing_cols:
                 with engine.begin() as conn:
                     conn.execute(sa_text(
                         f"ALTER TABLE {users_table} ADD tour_completed BIT NOT NULL DEFAULT 0"
                     ))
-                logger.info("Columna tour_completed añadida a %s", users_table)
+                logger.info(f"✅ [SCHEMA] Columna tour_completed añadida a {users_table}")
+            else:
+                logger.info(f"ℹ️ [SCHEMA] Columna tour_completed ya existe en {users_table}")
+        else:
+            logger.warning(f"⚠️ [SCHEMA] Tabla {users_table} no encontrada")
     except Exception as e:
-        logger.warning("Migración de esquema (tour_completed): %s", e)
+        logger.warning(f"⚠️ [SCHEMA] Migración de esquema (tour_completed): {e}")
 
     # Migrar PDFs legacy a tabla dedicada
     try:
+        logger.info("🔵 [DOCS] Iniciando migración de documentos legacy...")
         from backend.db.session import SessionLocal
         from backend.services.invoice_document_service import migrate_legacy_invoice_documents
 
@@ -71,7 +92,7 @@ async def lifespan(app: FastAPI):
         try:
             stats = migrate_legacy_invoice_documents(db)
             logger.info(
-                "Migración de documentos: escaneadas=%s, migrados=%s, legacy_limpiados=%s",
+                "✅ [DOCS] Migración completada: escaneadas=%s, migrados=%s, legacy_limpiados=%s",
                 stats.get("invoices_scanned", 0),
                 stats.get("documents_migrated", 0),
                 stats.get("legacy_fields_cleared", 0),
@@ -79,18 +100,20 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
     except Exception as e:
-        logger.error("Error en migración de documentos legacy: %s", e)
+        logger.error(f"❌ [DOCS] Error en migración de documentos legacy: {e}")
 
     # Auto-seed: crear datos iniciales si la BD está vacía
     try:
+        logger.info("🔵 [SEED] Verificando si BD necesita seed...")
         from backend.db.session import SessionLocal
         from backend.models.user import User
 
         db = SessionLocal()
         user_count = db.query(User).count()
+        logger.info(f"🔵 [SEED] Usuarios existentes: {user_count}")
 
         if user_count == 0:
-            logger.info("Base de datos vacía — ejecutando seed automático...")
+            logger.info("🔵 [SEED] Base de datos vacía — ejecutando seed automático...")
 
             from uuid import uuid4
             from datetime import datetime
@@ -100,49 +123,60 @@ async def lifespan(app: FastAPI):
 
             now = datetime.utcnow()
 
-            areas = [
-                Area(id=str(uuid4()), nombre="Finanzas", descripcion="Departamento de Finanzas"),
-                Area(id=str(uuid4()), nombre="Operaciones", descripcion="Departamento de Operaciones"),
-                Area(id=str(uuid4()), nombre="Recursos Humanos", descripcion="Departamento de RRHH"),
-                Area(id=str(uuid4()), nombre="Tecnología", descripcion="Departamento de TI"),
-            ]
-            db.add_all(areas)
-            db.flush()
+            try:
+                logger.info("🔵 [SEED] Creando áreas...")
+                areas = [
+                    Area(id=str(uuid4()), nombre="Finanzas", descripcion="Departamento de Finanzas"),
+                    Area(id=str(uuid4()), nombre="Operaciones", descripcion="Departamento de Operaciones"),
+                    Area(id=str(uuid4()), nombre="Recursos Humanos", descripcion="Departamento de RRHH"),
+                    Area(id=str(uuid4()), nombre="Tecnología", descripcion="Departamento de TI"),
+                ]
+                db.add_all(areas)
+                db.flush()
+                logger.info(f"✅ [SEED] {len(areas)} áreas creadas")
 
-            users = [
-                User(id=str(uuid4()), email="admin@sistema.com", password=hash_password("admin123"),
-                     nombre="Administrador Principal", rol=RoleEnum.ADMINISTRADOR.value,
-                     empresa_id=None, activo=True, tour_completed=False, created_at=now, updated_at=now),
-                User(id=str(uuid4()), email="tesorero@sistema.com", password=hash_password("tesorero123"),
-                     nombre="Tesorero Principal", rol=RoleEnum.TESORERO.value,
-                     empresa_id=areas[0].id, activo=True, tour_completed=False, created_at=now, updated_at=now),
-                User(id=str(uuid4()), email="usuario@sistema.com", password=hash_password("usuario123"),
-                     nombre="Usuario de Área", rol=RoleEnum.USUARIO_AREA.value,
-                     empresa_id=areas[1].id, activo=True, tour_completed=False, created_at=now, updated_at=now),
-                User(id=str(uuid4()), email="supervisor@sistema.com", password=hash_password("supervisor123"),
-                     nombre="Supervisor de Finanzas", rol=RoleEnum.SUPERVISOR.value,
-                     empresa_id=None, activo=True, tour_completed=False, created_at=now, updated_at=now),
-            ]
-            db.add_all(users)
-            db.flush()
+                logger.info("🔵 [SEED] Creando usuarios...")
+                users = [
+                    User(id=str(uuid4()), email="admin@sistema.com", password=hash_password("admin123"),
+                         nombre="Administrador Principal", rol=RoleEnum.ADMINISTRADOR.value,
+                         empresa_id=None, activo=True, tour_completed=False, created_at=now, updated_at=now),
+                    User(id=str(uuid4()), email="tesorero@sistema.com", password=hash_password("tesorero123"),
+                         nombre="Tesorero Principal", rol=RoleEnum.TESORERO.value,
+                         empresa_id=areas[0].id, activo=True, tour_completed=False, created_at=now, updated_at=now),
+                    User(id=str(uuid4()), email="usuario@sistema.com", password=hash_password("usuario123"),
+                         nombre="Usuario de Área", rol=RoleEnum.USUARIO_AREA.value,
+                         empresa_id=areas[1].id, activo=True, tour_completed=False, created_at=now, updated_at=now),
+                    User(id=str(uuid4()), email="supervisor@sistema.com", password=hash_password("supervisor123"),
+                         nombre="Supervisor de Finanzas", rol=RoleEnum.SUPERVISOR.value,
+                         empresa_id=None, activo=True, tour_completed=False, created_at=now, updated_at=now),
+                ]
+                db.add_all(users)
+                db.flush()
+                logger.info(f"✅ [SEED] {len(users)} usuarios creados")
 
-            # Crear relación supervisor-empresa: supervisa Finanzas y Operaciones
-            supervisor_rel = [
-                SupervisorEmpresa(id=str(uuid4()), supervisor_id=users[3].id, empresa_id=areas[0].id, created_at=now),
-                SupervisorEmpresa(id=str(uuid4()), supervisor_id=users[3].id, empresa_id=areas[1].id, created_at=now),
-            ]
-            db.add_all(supervisor_rel)
-            db.commit()
-            logger.info("Seed completado: %s usuarios creados", len(users))
+                # Crear relación supervisor-empresa: supervisa Finanzas y Operaciones
+                logger.info("🔵 [SEED] Creando relaciones supervisor-empresa...")
+                supervisor_rel = [
+                    SupervisorEmpresa(id=str(uuid4()), supervisor_id=users[3].id, empresa_id=areas[0].id, created_at=now),
+                    SupervisorEmpresa(id=str(uuid4()), supervisor_id=users[3].id, empresa_id=areas[1].id, created_at=now),
+                ]
+                db.add_all(supervisor_rel)
+                db.commit()
+                logger.info(f"✅ [SEED] {len(supervisor_rel)} relaciones supervisor-empresa creadas")
+                logger.info(f"✅ [SEED] Seed completado: {len(users)} usuarios creados")
+            except Exception as seed_error:
+                logger.error(f"❌ [SEED] Error durante seed: {seed_error}", exc_info=True)
+                db.rollback()
+                raise
         else:
-            logger.info("Base de datos con %s usuarios existentes", user_count)
+            logger.info(f"ℹ️ [SEED] Base de datos con {user_count} usuarios existentes")
 
         db.close()
     except Exception as e:
-        logger.error("Error en seed automático: %s", e)
+        logger.error(f"❌ [SEED] Error en seed automático: {e}", exc_info=True)
 
     yield
-    logger.info("Cerrando aplicación...")
+    logger.info("🔴 [SHUTDOWN] Cerrando aplicación...")
 
 
 # ---------------------------------------------------------------------------

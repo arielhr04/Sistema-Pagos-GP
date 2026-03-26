@@ -1,9 +1,13 @@
 import uuid
 from datetime import datetime
+import logging
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, LargeBinary, Index, Boolean
 from sqlalchemy.orm import deferred, relationship
 
 from backend.db.base import Base
+
+logger = logging.getLogger(__name__)
+logger.info("🔵 [MODEL] Cargando modelo Invoice")
 
 
 def generate_uuid() -> str:
@@ -46,7 +50,7 @@ class Invoice(Base):
         Index('idx_invoice_supervisor_id', 'supervisor_id'),
     )
 
-    creator = relationship("User", back_populates="invoices")
+    creator = relationship("User", back_populates="invoices", foreign_keys=[created_by])
     empresa = relationship("Area", back_populates="invoices")
     supervisor = relationship("User", foreign_keys=[supervisor_id])
     movements = relationship("MovementHistory", back_populates="invoice")
