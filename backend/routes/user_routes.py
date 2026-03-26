@@ -69,6 +69,7 @@ def create_user(user_data: UserCreate, current_user: User = Depends(require_role
         empresa_id=user_obj.empresa_id,
         empresa_nombre=empresa_nombre,
         activo=user_obj.activo,
+        tour_completed=user_obj.tour_completed or False,
         created_at=_to_iso_datetime(user_obj.created_at),
     )
 
@@ -90,6 +91,7 @@ def get_users(current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)
                     empresa_id=u.empresa_id,
                     empresa_nombre=empresas.get(u.empresa_id),
                     activo=u.activo,
+                    tour_completed=u.tour_completed or False,
                     created_at=_to_iso_datetime(u.created_at),
                 )
             )
@@ -130,6 +132,7 @@ def update_user(user_id: str, user_data: UserUpdate, current_user: User = Depend
         empresa_id=user.empresa_id,
         empresa_nombre=empresa_nombre,
         activo=user.activo,
+        tour_completed=user.tour_completed or False,
         created_at=_to_iso_datetime(user.created_at),
     )
 
