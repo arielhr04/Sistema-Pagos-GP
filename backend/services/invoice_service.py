@@ -133,10 +133,11 @@ def get_treasury_review_map(db: Session, invoice_ids: List[str]) -> dict:
 # ---------------------------------------------------------------------------
 def build_invoice_response(
     inv: Invoice,
-    area_nombre: Optional[str] = None,
+    empresa_nombre: Optional[str] = None,
     created_by_nombre: Optional[str] = None,
     fecha_revision_tesoreria: Optional[str] = None,
     comprobante_pago_subido: Optional[bool] = None,
+    supervisor_nombre: Optional[str] = None,
 ) -> InvoiceResponse:
     """Construir InvoiceResponse a partir de un modelo Invoice."""
     proof_uploaded = (
@@ -149,8 +150,8 @@ def build_invoice_response(
         id=inv.id,
         nombre_proveedor=inv.nombre_proveedor,
         descripcion_factura=inv.descripcion_factura,
-        area_procedencia=inv.area_procedencia,
-        area_nombre=area_nombre,
+        empresa_factura=inv.empresa_factura,
+        empresa_nombre=empresa_nombre,
         monto=inv.monto,
         fecha_vencimiento=inv.fecha_vencimiento,
         folio_fiscal=inv.folio_fiscal,
@@ -161,6 +162,11 @@ def build_invoice_response(
         created_by_nombre=created_by_nombre,
         revisada_por_tesoreria=bool(fecha_revision_tesoreria),
         fecha_revision_tesoreria=fecha_revision_tesoreria,
+        requiere_autorizacion=inv.requiere_autorizacion,
+        aprobada_por_supervisor=inv.aprobada_por_supervisor,
+        supervisor_id=inv.supervisor_id,
+        supervisor_nombre=supervisor_nombre,
+        fecha_aprobacion_supervisor=to_iso_string(inv.fecha_aprobacion_supervisor) if inv.fecha_aprobacion_supervisor else None,
         created_at=to_iso_string(inv.created_at),
         updated_at=to_iso_string(inv.updated_at),
     )

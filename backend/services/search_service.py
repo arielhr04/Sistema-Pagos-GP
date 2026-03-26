@@ -20,7 +20,7 @@ class SearchService:
         db: Session,
         search_term: Optional[str] = None,
         estatus: Optional[str] = None,
-        area_id: Optional[str] = None,
+        empresa_factura: Optional[str] = None,
         limite: int = 100,
         offset: int = 0
     ) -> tuple[List[Invoice], int]:
@@ -33,7 +33,7 @@ class SearchService:
             db: Database session
             search_term: Text to search in provider name, folio, description
             estatus: Filter by status (indexed)
-            area_id: Filter by area (indexed)
+            empresa_factura: Filter by empresa (indexed)
             limite: Result limit
             offset: Pagination offset
             
@@ -46,8 +46,8 @@ class SearchService:
         if estatus:
             query = query.filter(Invoice.estatus == estatus)
         
-        if area_id:
-            query = query.filter(Invoice.area_procedencia == area_id)
+        if empresa_factura:
+            query = query.filter(Invoice.empresa_factura == empresa_factura)
         
         # Then apply text search (uses indexes if columns have indexes)
         if search_term:

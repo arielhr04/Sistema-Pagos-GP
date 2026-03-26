@@ -40,13 +40,13 @@ def seed_data(
     users = [
         User(id=str(uuid.uuid4()), email="admin@sistema.com", password=hash_password("admin123"),
              nombre="Administrador Principal", rol=RoleEnum.ADMINISTRADOR.value,
-             area_id=None, activo=True, created_at=now, updated_at=now),
+             empresa_id=None, activo=True, created_at=now, updated_at=now),
         User(id=str(uuid.uuid4()), email="tesorero@sistema.com", password=hash_password("tesorero123"),
              nombre="Tesorero Principal", rol=RoleEnum.TESORERO.value,
-             area_id=areas[0].id, activo=True, created_at=now, updated_at=now),
+             empresa_id=areas[0].id, activo=True, created_at=now, updated_at=now),
         User(id=str(uuid.uuid4()), email="usuario@sistema.com", password=hash_password("usuario123"),
              nombre="Usuario de Área", rol=RoleEnum.USUARIO_AREA.value,
-             area_id=areas[1].id, activo=True, created_at=now, updated_at=now),
+             empresa_id=areas[1].id, activo=True, created_at=now, updated_at=now),
     ]
     db.add_all(users)
     db.commit()
