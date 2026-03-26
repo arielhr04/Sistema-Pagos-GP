@@ -105,10 +105,10 @@ def login(request: LoginRequest, raw_request: Request, db: Session = Depends(get
     refresh = create_refresh_token(user.id)
     logger.info("Login exitoso: %s (%s)", request.email, user.rol)
 
-    area_nombre = None
-    if user.area_id:
-        area_obj = db.query(Area).filter(Area.id == user.area_id).first()
-        area_nombre = area_obj.nombre if area_obj else None
+    empresa_nombre = None
+    if user.empresa_id:
+        empresa_obj = db.query(Area).filter(Area.id == user.empresa_id).first()
+        empresa_nombre = empresa_obj.nombre if empresa_obj else None
 
     return TokenResponse(
         access_token=token,
@@ -118,8 +118,8 @@ def login(request: LoginRequest, raw_request: Request, db: Session = Depends(get
             email=user.email,
             nombre=user.nombre,
             rol=user.rol,
-            area_id=user.area_id,
-            area_nombre=area_nombre,
+            empresa_id=user.empresa_id,
+            empresa_nombre=empresa_nombre,
             activo=user.activo,
             tour_completed=user.tour_completed or False,
             created_at=user.created_at.isoformat(),
@@ -130,18 +130,18 @@ def login(request: LoginRequest, raw_request: Request, db: Session = Depends(get
 @router.get("/me", response_model=UserResponse)
 def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Obtener datos del usuario autenticado."""
-    area_nombre = None
-    if user.area_id:
-        area_obj = db.query(Area).filter(Area.id == user.area_id).first()
-        area_nombre = area_obj.nombre if area_obj else None
+    empresa_nombre = None
+    if user.empresa_id:
+        empresa_obj = db.query(Area).filter(Area.id == user.empresa_id).first()
+        empresa_nombre = empresa_obj.nombre if empresa_obj else None
 
     return UserResponse(
         id=user.id,
         email=user.email,
         nombre=user.nombre,
         rol=user.rol,
-        area_id=user.area_id,
-        area_nombre=area_nombre,
+        empresa_id=user.empresa_id,
+        empresa_nombre=empresa_nombre,
         activo=user.activo,
         tour_completed=user.tour_completed or False,
         created_at=user.created_at.isoformat(),

@@ -285,7 +285,7 @@ const DashboardPage = () => {
         toast.error(`Error al cargar áreas: ${error.response?.data?.detail || error.message}`);
       }
     }
-  }, [getAuthHeader, user?.area_id, demoMode, demoData]);
+  }, [getAuthHeader, user?.empresa_id, demoMode, demoData]);
 
   const fetchMyInvoices = useCallback(async () => {
     // Si estamos en modo tour, usar datos mock
@@ -1752,7 +1752,7 @@ const DashboardPage = () => {
                 <div className="space-y-2">
                   <Label htmlFor="area_reg">Área *</Label>
                   <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
-                    {areas.find(a => a.id === user?.area_id)?.nombre || 'Cargando...'}
+                    {areas.find(a => a.id === user?.empresa_id)?.nombre || 'Cargando...'}
                   </div>
                 </div>
                 <div className="space-y-2">

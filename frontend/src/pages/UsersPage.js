@@ -78,7 +78,7 @@ const UsersPage = () => {
     password: '',
     nombre: '',
     rol: 'Usuario Área',
-    area_id: '',
+    empresa_id: '',
   });
 
   const fetchUsers = useCallback(async () => {
@@ -156,7 +156,7 @@ const UsersPage = () => {
         const updateData = {
           nombre: formData.nombre,
           rol: formData.rol,
-          area_id: formData.area_id || null,
+          empresa_id: formData.empresa_id || null,
         };
         await axios.put(`${API_URL}/api/users/${editingUser.id}`, updateData, getAuthHeader());
         toast.success('Usuario actualizado');
@@ -182,7 +182,7 @@ const UsersPage = () => {
       password: '',
       nombre: user.nombre,
       rol: user.rol,
-      area_id: user.area_id || '',
+      empresa_id: user.empresa_id || '',
     });
     setDialogOpen(true);
   };
@@ -248,7 +248,7 @@ const UsersPage = () => {
       password: '',
       nombre: '',
       rol: 'Usuario Área',
-      area_id: '',
+      empresa_id: '',
     });
   };
 
@@ -427,16 +427,16 @@ const UsersPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="area">Área (opcional)</Label>
+                  <Label htmlFor="area">Empresa (opcional)</Label>
                   <Select
-                    value={formData.area_id || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, area_id: value === "none" ? "" : value })}
+                    value={formData.empresa_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, empresa_id: value === "none" ? "" : value })}
                   >
                     <SelectTrigger data-testid="user-area-select">
-                      <SelectValue placeholder="Seleccionar área" />
+                      <SelectValue placeholder="Seleccionar empresa" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Sin área</SelectItem>
+                      <SelectItem value="none">Sin empresa</SelectItem>
                       {areas.map((area) => (
                         <SelectItem key={area.id} value={area.id}>
                           {area.nombre}

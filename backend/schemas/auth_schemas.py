@@ -11,8 +11,8 @@ class UserResponse(BaseModel):
     email: str
     nombre: str
     rol: str
-    area_id: Optional[str] = None
-    area_nombre: Optional[str] = None
+    empresa_id: Optional[str] = None
+    empresa_nombre: Optional[str] = None
     activo: bool
     tour_completed: bool = False
     created_at: str
