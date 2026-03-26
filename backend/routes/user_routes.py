@@ -31,47 +31,60 @@ def _to_iso_datetime(value) -> str:
 @router.post("", response_model=UserResponse)
 @router.post("/", response_model=UserResponse, include_in_schema=False)
 def create_user(user_data: UserCreate, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == user_data.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="El email ya está registrado")
+    logger.info(f"🔵 [USER CREATE] Datos recibidos: email={user_data.email}, nombre={user_data.nombre}, rol={user_data.rol}, empresa_id={user_data.empresa_id}")
+    
+    try:
+        existing = db.query(User).filter(User.email == user_data.email).first()
+        if existing:
+            logger.warning(f"⚠️ [USER CREATE] Email ya registrado: {user_data.email}")
+            raise HTTPException(status_code=400, detail="El email ya está registrado")
 
-    user_id = str(uuid.uuid4())
-    # use naive UTC datetimes for database compatibility
-    now = datetime.utcnow()
+        user_id = str(uuid.uuid4())
+        # use naive UTC datetimes for database compatibility
+        now = datetime.utcnow()
 
-    # convert blank empresa IDs to None so FK constraints are not violated
-    empresa_id = user_data.empresa_id if user_data.empresa_id else None
-    user_obj = User(
-        id=user_id,
-        email=user_data.email,
-        password=hash_password(user_data.password),
-        nombre=user_data.nombre,
-        rol=user_data.rol.value,
-        empresa_id=empresa_id,
-        activo=True,
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(user_obj)
-    db.commit()
-    db.refresh(user_obj)
+        # convert blank empresa IDs to None so FK constraints are not violated
+        empresa_id = user_data.empresa_id if user_data.empresa_id else None
+        
+        logger.info(f"🔵 [USER CREATE] Creando usuario: {user_data.email}, rol type: {type(user_data.rol)}, rol value: {user_data.rol.value if hasattr(user_data.rol, 'value') else user_data.rol}")
+        
+        user_obj = User(
+            id=user_id,
+            email=user_data.email,
+            password=hash_password(user_data.password),
+            nombre=user_data.nombre,
+            rol=user_data.rol.value if hasattr(user_data.rol, 'value') else user_data.rol,
+            empresa_id=empresa_id,
+            activo=True,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(user_obj)
+        db.commit()
+        db.refresh(user_obj)
+        logger.info(f"✅ [USER CREATE] Usuario creado exitosamente: {user_obj.id}")
 
-    empresa_nombre = None
-    if user_data.empresa_id:
-        empresa_obj = db.query(Area).filter(Area.id == user_data.empresa_id).first()
-        empresa_nombre = empresa_obj.nombre if empresa_obj else None
+        empresa_nombre = None
+        if user_data.empresa_id:
+            empresa_obj = db.query(Area).filter(Area.id == user_data.empresa_id).first()
+            empresa_nombre = empresa_obj.nombre if empresa_obj else None
 
-    return UserResponse(
-        id=user_obj.id,
-        email=user_obj.email,
-        nombre=user_obj.nombre,
-        rol=user_obj.rol,
-        empresa_id=user_obj.empresa_id,
-        empresa_nombre=empresa_nombre,
-        activo=user_obj.activo,
-        tour_completed=user_obj.tour_completed or False,
-        created_at=_to_iso_datetime(user_obj.created_at),
-    )
+        return UserResponse(
+            id=user_obj.id,
+            email=user_obj.email,
+            nombre=user_obj.nombre,
+            rol=user_obj.rol,
+            empresa_id=user_obj.empresa_id,
+            empresa_nombre=empresa_nombre,
+            activo=user_obj.activo,
+            tour_completed=user_obj.tour_completed or False,
+            created_at=_to_iso_datetime(user_obj.created_at),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ [USER CREATE] Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al crear usuario: {str(e)}")
 
 @router.get("", response_model=List[UserResponse])
 @router.get("/", response_model=List[UserResponse], include_in_schema=False)

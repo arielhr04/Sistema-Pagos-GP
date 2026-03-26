@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -226,6 +227,32 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": f"Error interno del servidor. Referencia: {error_id}"},
+    )
+
+# Error handler para validación (422)
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Captura errores de validación Pydantic y logea detalles."""
+    error_details = exc.errors()
+    logger.error(f"❌ [VALIDATION] Error 422 en {request.method} {request.url.path}")
+    logger.error(f"❌ [VALIDATION] Errores detectados: {error_details}")
+    
+    # Construir mensaje de error legible
+    error_messages = []
+    for error in error_details:
+        field = " -> ".join(str(loc) for loc in error.get("loc", [])[1:])  # Saltar el primer elemento (body)
+        msg = error.get("msg", "Valor inválido")
+        error_messages.append(f"{field}: {msg}" if field else msg)
+    
+    detail_message = "; ".join(error_messages) if error_messages else "Error de validación"
+    logger.error(f"❌ [VALIDATION] Mensaje compilado: {detail_message}")
+    
+    # Retornar en formato simple que el frontend puede entender
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": detail_message
+        }
     )
 
 # ---------------------------------------------------------------------------
