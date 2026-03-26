@@ -35,6 +35,7 @@ class User(Base):
 
     empresa = relationship("Area", back_populates="usuarios")
     empresas_supervisadas = relationship("SupervisorEmpresa", back_populates="supervisor")
-    invoices = relationship("Invoice", back_populates="creator")
+    invoices = relationship("Invoice", back_populates="creator", foreign_keys="[Invoice.created_by]")
+    invoices_supervisados = relationship("Invoice", foreign_keys="[Invoice.supervisor_id]", viewonly=True)
     movements = relationship("MovementHistory", back_populates="usuario")
     login_audits = relationship("LoginAudit", back_populates="usuario")

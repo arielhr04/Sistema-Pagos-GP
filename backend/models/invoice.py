@@ -50,8 +50,8 @@ class Invoice(Base):
         Index('idx_invoice_supervisor_id', 'supervisor_id'),
     )
 
-    creator = relationship("User", back_populates="invoices", foreign_keys=[created_by])
+    creator = relationship("User", back_populates="invoices", foreign_keys="[Invoice.created_by]")
     empresa = relationship("Area", back_populates="invoices")
-    supervisor = relationship("User", foreign_keys=[supervisor_id])
+    supervisor = relationship("User", foreign_keys="[Invoice.supervisor_id]", viewonly=True)
     movements = relationship("MovementHistory", back_populates="invoice")
     documents = relationship("InvoiceDocument", back_populates="invoice", cascade="all, delete-orphan")
