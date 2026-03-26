@@ -15,6 +15,7 @@ from backend.services.auth_service import require_roles, hash_password
 from backend.db.session import get_db
 from backend.models.user import User
 from backend.models.area import Area
+from backend.models.supervisor_empresa import SupervisorEmpresa
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 logger = logging.getLogger(__name__)
@@ -179,6 +180,85 @@ def change_user_password(
     db.commit()
     logger.info("Contraseña actualizada para usuario %s por admin %s", user_id, current_user.id)
     return {"message": "Contraseña actualizada exitosamente"}
+
+
+@router.get("/{user_id}/empresas-supervisadas")
+def get_supervisor_empresas(
+    user_id: str,
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
+    db: Session = Depends(get_db),
+):
+    """Obtener la lista de empresas que supervisa un usuario."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if user.rol != RoleEnum.SUPERVISOR.value:
+        raise HTTPException(status_code=400, detail="Este usuario no es un supervisor")
+
+    supervisadas = db.query(SupervisorEmpresa).filter(SupervisorEmpresa.supervisor_id == user_id).all()
+    empresa_ids = [s.empresa_id for s in supervisadas]
+    
+    logger.info(f"🔵 [SUPERVISOR] {user.email} supervisa {len(empresa_ids)} empresas: {empresa_ids}")
+    return {"empresa_ids": empresa_ids}
+
+
+@router.post("/{user_id}/empresas-supervisadas")
+def assign_supervisor_empresas(
+    user_id: str,
+    payload: dict,
+    current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)),
+    db: Session = Depends(get_db),
+):
+    """Asignar múltiples empresas a un supervisor."""
+    logger.info(f"🔵 [SUPERVISOR ASSIGN] Usuario {user_id}, payload: {payload}")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if user.rol != RoleEnum.SUPERVISOR.value:
+        raise HTTPException(status_code=400, detail="Este usuario no es un supervisor")
+
+    empresa_ids = payload.get("empresa_ids", [])
+    if not isinstance(empresa_ids, list):
+        raise HTTPException(status_code=400, detail="empresa_ids debe ser una lista")
+
+    try:
+        # Eliminar todas las asignaciones anteriores
+        db.query(SupervisorEmpresa).filter(SupervisorEmpresa.supervisor_id == user_id).delete()
+        logger.info(f"✅ [SUPERVISOR ASSIGN] Eliminadas asignaciones anteriores para {user.email}")
+
+        # Crear nuevas asignaciones
+        now = datetime.utcnow()
+        for empresa_id in empresa_ids:
+            # Verificar que la empresa existe
+            empresa = db.query(Area).filter(Area.id == empresa_id).first()
+            if not empresa:
+                logger.warning(f"⚠️ [SUPERVISOR ASSIGN] Empresa no encontrada: {empresa_id}")
+                continue
+
+            supervisor_rel = SupervisorEmpresa(
+                id=str(uuid.uuid4()),
+                supervisor_id=user_id,
+                empresa_id=empresa_id,
+                created_at=now
+            )
+            db.add(supervisor_rel)
+            logger.info(f"✅ [SUPERVISOR ASSIGN] Asignado {user.email} → {empresa.nombre}")
+
+        db.commit()
+        logger.info(f"✅ [SUPERVISOR ASSIGN] Completado: {len(empresa_ids)} empresas asignadas a {user.email}")
+        
+        return {
+            "message": f"Se asignaron {len(empresa_ids)} empresas al supervisor",
+            "supervisor_id": user_id,
+            "empresa_ids": empresa_ids
+        }
+    except Exception as e:
+        logger.error(f"❌ [SUPERVISOR ASSIGN] Error: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al asignar empresas: {str(e)}")
 
 
 @router.get("/export/excel")

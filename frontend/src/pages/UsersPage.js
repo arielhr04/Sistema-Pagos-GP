@@ -80,6 +80,7 @@ const UsersPage = () => {
     nombre: '',
     rol: 'Usuario Área',
     empresa_id: '',
+    empresas_supervisadas: [], // Nueva: lista de empresas que supervisa
   });
 
   const fetchUsers = useCallback(async () => {
@@ -160,9 +161,32 @@ const UsersPage = () => {
           empresa_id: formData.empresa_id || null,
         };
         await axios.put(`${API_URL}/api/users/${editingUser.id}`, updateData, getAuthHeader());
+        
+        // Si es supervisor, asignar empresas supervisadas
+        if (formData.rol === 'Supervisor' && formData.empresas_supervisadas.length > 0) {
+          await axios.post(
+            `${API_URL}/api/users/${editingUser.id}/empresas-supervisadas`,
+            { empresa_ids: formData.empresas_supervisadas },
+            getAuthHeader()
+          );
+        }
+        
         toast.success('Usuario actualizado');
       } else {
         await axios.post(`${API_URL}/api/users`, formData, getAuthHeader());
+        
+        // Si es supervisor, asignar empresas supervisadas
+        if (formData.rol === 'Supervisor' && formData.empresas_supervisadas.length > 0) {
+          // Obtener el ID del usuario recién creado desde la respuesta
+          const response = await axios.post(`${API_URL}/api/users`, formData, getAuthHeader());
+          const newUserId = response.data.id;
+          await axios.post(
+            `${API_URL}/api/users/${newUserId}/empresas-supervisadas`,
+            { empresa_ids: formData.empresas_supervisadas },
+            getAuthHeader()
+          );
+        }
+        
         toast.success('Usuario creado');
       }
       setDialogOpen(false);
@@ -176,14 +200,30 @@ const UsersPage = () => {
     }
   };
 
-  const handleEdit = (user) => {
+  const handleEdit = async (user) => {
     setEditingUser(user);
+    const supervisadasIds = [];
+    
+    // Si es supervisor, cargar sus empresas supervisadas
+    if (user.rol === 'Supervisor') {
+      try {
+        const response = await axios.get(
+          `${API_URL}/api/users/${user.id}/empresas-supervisadas`,
+          getAuthHeader()
+        );
+        supervisadasIds.push(...(response.data.empresa_ids || []));
+      } catch (error) {
+        console.error('Error fetching supervisor empresas:', error);
+      }
+    }
+    
     setFormData({
       email: user.email,
       password: '',
       nombre: user.nombre,
       rol: user.rol,
       empresa_id: user.empresa_id || '',
+      empresas_supervisadas: supervisadasIds,
     });
     setDialogOpen(true);
   };
@@ -250,6 +290,7 @@ const UsersPage = () => {
       nombre: '',
       rol: 'Usuario Área',
       empresa_id: '',
+      empresas_supervisadas: [],
     });
   };
 
@@ -447,6 +488,45 @@ const UsersPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.rol === 'Supervisor' && (
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <Label className="font-semibold text-purple-900">Empresas a Supervisar</Label>
+                    <p className="text-sm text-purple-700 mb-3">Selecciona las empresas que este supervisor puede autorizar facturas</p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {areas.length === 0 ? (
+                        <p className="text-sm text-gray-500">No hay empresas disponibles</p>
+                      ) : (
+                        areas.map((area) => (
+                          <div key={area.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`supervisor-area-${area.id}`}
+                              checked={formData.empresas_supervisadas.includes(area.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    empresas_supervisadas: [...formData.empresas_supervisadas, area.id]
+                              });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    empresas_supervisadas: formData.empresas_supervisadas.filter(id => id !== area.id)
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-purple-600 cursor-pointer"
+                            />
+                            <label htmlFor={`supervisor-area-${area.id}`} className="text-sm cursor-pointer">
+                              {area.nombre}
+                            </label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4 border-t">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
