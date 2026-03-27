@@ -430,7 +430,7 @@ const UsersPage = () => {
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className={`mt-4 ${
+              <form onSubmit={handleSubmit} className={`mt-4 overflow-y-auto pr-2 ${
                 formData.rol === 'Supervisor' && editingUser 
                   ? 'grid grid-cols-2 gap-6' 
                   : 'space-y-4'
@@ -519,10 +519,10 @@ const UsersPage = () => {
 
                 {/* COLUMNA DERECHA: Empresas supervisadas (Solo para supervisores en edición) */}
                 {formData.rol === 'Supervisor' && editingUser && (
-                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200 flex flex-col h-full">
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200 flex flex-col">
                     <Label className="font-semibold text-purple-900">Empresas a Supervisar</Label>
                     <p className="text-sm text-purple-700 mb-2">Selecciona las empresas que este supervisor puede autorizar facturas</p>
-                    <div className="space-y-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-100">
+                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-100">
                       {areas.length === 0 ? (
                         <p className="text-sm text-gray-500">No hay empresas disponibles</p>
                       ) : (
