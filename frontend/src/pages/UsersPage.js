@@ -67,12 +67,14 @@ const UsersPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [savingSupervisor, setSavingSupervisor] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordUser, setPasswordUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [initialEmpresasSupervisadas, setInitialEmpresasSupervisadas] = useState([]); // Estado inicial para detectar cambios
 
   const [formData, setFormData] = useState({
     email: '',
@@ -149,6 +151,11 @@ const UsersPage = () => {
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Detectar si hay cambios en las empresas supervisadas
+  const hasSupervisorChanges = editingUser && 
+    formData.rol === 'Supervisor' && 
+    JSON.stringify(formData.empresas_supervisadas.sort()) !== JSON.stringify(initialEmpresasSupervisadas.sort());
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -161,24 +168,12 @@ const UsersPage = () => {
           empresa_id: formData.empresa_id || null,
         };
         await axios.put(`${API_URL}/api/users/${editingUser.id}`, updateData, getAuthHeader());
-        
-        // Si es supervisor, asignar empresas supervisadas
-        if (formData.rol === 'Supervisor' && formData.empresas_supervisadas.length > 0) {
-          await axios.post(
-            `${API_URL}/api/users/${editingUser.id}/empresas-supervisadas`,
-            { empresa_ids: formData.empresas_supervisadas },
-            getAuthHeader()
-          );
-        }
-        
         toast.success('Usuario actualizado');
       } else {
-        await axios.post(`${API_URL}/api/users`, formData, getAuthHeader());
+        const response = await axios.post(`${API_URL}/api/users`, formData, getAuthHeader());
         
         // Si es supervisor, asignar empresas supervisadas
         if (formData.rol === 'Supervisor' && formData.empresas_supervisadas.length > 0) {
-          // Obtener el ID del usuario recién creado desde la respuesta
-          const response = await axios.post(`${API_URL}/api/users`, formData, getAuthHeader());
           const newUserId = response.data.id;
           await axios.post(
             `${API_URL}/api/users/${newUserId}/empresas-supervisadas`,
@@ -191,6 +186,7 @@ const UsersPage = () => {
       }
       setDialogOpen(false);
       resetForm();
+      setInitialEmpresasSupervisadas([]);
       fetchUsers();
     } catch (error) {
       console.error('Error saving user:', error);
@@ -217,6 +213,9 @@ const UsersPage = () => {
       }
     }
     
+    // Guardar estado inicial para detectar cambios
+    setInitialEmpresasSupervisadas(supervisadasIds);
+    
     setFormData({
       email: user.email,
       password: '',
@@ -238,6 +237,28 @@ const UsersPage = () => {
     } catch (error) {
       console.error('Error deleting user:', error);
       toast.error(error.response?.data?.detail || 'Error al eliminar usuario');
+    }
+  };
+
+  const handleSaveSupervisorAssignments = async () => {
+    if (!editingUser || !hasSupervisorChanges) return;
+    
+    setSavingSupervisor(true);
+    try {
+      await axios.post(
+        `${API_URL}/api/users/${editingUser.id}/empresas-supervisadas`,
+        { empresa_ids: formData.empresas_supervisadas },
+        getAuthHeader()
+      );
+      toast.success('Asignaciones de empresas guardadas');
+      // Actualizar estado inicial para limpiar el botón de cambios pendientes
+      setInitialEmpresasSupervisadas(formData.empresas_supervisadas);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error saving supervisor assignments:', error);
+      toast.error(error.response?.data?.detail || 'Error al guardar asignaciones');
+    } finally {
+      setSavingSupervisor(false);
     }
   };
 
@@ -525,6 +546,34 @@ const UsersPage = () => {
                         ))
                       )}
                     </div>
+                    
+                    {/* Botón de guardar cambios - solo aparece si hay cambios pendientes */}
+                    {hasSupervisorChanges && (
+                      <div className="pt-3 border-t border-purple-200 flex gap-2">
+                        <Button
+                          type="button"
+                          onClick={handleSaveSupervisorAssignments}
+                          disabled={savingSupervisor}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          {savingSupervisor ? 'Guardando...' : '✓ Guardar Cambios'}
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            // Revertir cambios
+                            setFormData({
+                              ...formData,
+                              empresas_supervisadas: initialEmpresasSupervisadas
+                            });
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          ✕ Descartar
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
 
