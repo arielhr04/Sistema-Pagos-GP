@@ -430,7 +430,7 @@ const UsersPage = () => {
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className={`mt-4 overflow-y-auto pr-2 ${
+              <form onSubmit={handleSubmit} className={`mt-4 ${
                 formData.rol === 'Supervisor' && editingUser 
                   ? 'grid grid-cols-2 gap-6' 
                   : 'space-y-4'
