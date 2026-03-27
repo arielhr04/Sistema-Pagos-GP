@@ -418,7 +418,7 @@ const UsersPage = () => {
                 Nuevo Usuario
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className={formData.rol === 'Supervisor' && editingUser ? "max-w-4xl" : "max-w-md"}>
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold font-[Chivo]">
                   {editingUser ? 'Editar Usuario' : 'Crear Usuario'}
@@ -430,44 +430,50 @@ const UsersPage = () => {
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nombre">Nombre Completo *</Label>
-                  <Input
-                    id="nombre"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    placeholder="Juan Pérez"
-                    required
-                    data-testid="user-name-input"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Correo Electrónico *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="correo@empresa.com"
-                    required
-                    disabled={!!editingUser}
-                    data-testid="user-email-input"
-                  />
-                </div>
-
-                {!editingUser && (
+              <form onSubmit={handleSubmit} className={`mt-4 ${
+                formData.rol === 'Supervisor' && editingUser 
+                  ? 'grid grid-cols-2 gap-6' 
+                  : 'space-y-4'
+              }`}>
+                {/* COLUMNA IZQUIERDA: Campos del usuario */}
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="password">Contraseña *</Label>
+                    <Label htmlFor="nombre">Nombre Completo *</Label>
                     <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="••••••••"
+                      id="nombre"
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                      placeholder="Juan Pérez"
                       required
-                      data-testid="user-password-input"
+                      data-testid="user-name-input"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Correo Electrónico *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="correo@empresa.com"
+                      required
+                      disabled={!!editingUser}
+                      data-testid="user-email-input"
+                    />
+                  </div>
+
+                  {!editingUser && (
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Contraseña *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="••••••••"
+                        required
+                        data-testid="user-password-input"
                     />
                   </div>
                 )}
@@ -509,12 +515,14 @@ const UsersPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                </div>
 
-                {formData.rol === 'Supervisor' && (
-                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                {/* COLUMNA DERECHA: Empresas supervisadas (Solo para supervisores en edición) */}
+                {formData.rol === 'Supervisor' && editingUser && (
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200 flex flex-col">
                     <Label className="font-semibold text-purple-900">Empresas a Supervisar</Label>
                     <p className="text-sm text-purple-700 mb-3">Selecciona las empresas que este supervisor puede autorizar facturas</p>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                    <div className="space-y-2 flex-1 overflow-y-auto pr-2">
                       {areas.length === 0 ? (
                         <p className="text-sm text-gray-500">No hay empresas disponibles</p>
                       ) : (
@@ -549,12 +557,12 @@ const UsersPage = () => {
                     
                     {/* Botón de guardar cambios - solo aparece si hay cambios pendientes */}
                     {hasSupervisorChanges && (
-                      <div className="pt-3 border-t border-purple-200 flex gap-2">
+                      <div className="pt-3 border-t border-purple-200 flex gap-2 flex-col">
                         <Button
                           type="button"
                           onClick={handleSaveSupervisorAssignments}
                           disabled={savingSupervisor}
-                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                         >
                           {savingSupervisor ? 'Guardando...' : '✓ Guardar Cambios'}
                         </Button>
@@ -568,7 +576,7 @@ const UsersPage = () => {
                             });
                           }}
                           variant="outline"
-                          className="flex-1"
+                          className="w-full"
                         >
                           ✕ Descartar
                         </Button>
@@ -577,7 +585,52 @@ const UsersPage = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-3 pt-4 border-t">
+                {!(formData.rol === 'Supervisor' && editingUser) && (
+                  <>
+                {formData.rol === 'Supervisor' && !editingUser && (
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <Label className="font-semibold text-purple-900">Empresas a Supervisar</Label>
+                    <p className="text-sm text-purple-700 mb-3">Selecciona las empresas que este supervisor puede autorizar facturas</p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {areas.length === 0 ? (
+                        <p className="text-sm text-gray-500">No hay empresas disponibles</p>
+                      ) : (
+                        areas.map((area) => (
+                          <div key={area.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`supervisor-area-new-${area.id}`}
+                              checked={formData.empresas_supervisadas.includes(area.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    empresas_supervisadas: [...formData.empresas_supervisadas, area.id]
+                              });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    empresas_supervisadas: formData.empresas_supervisadas.filter(id => id !== area.id)
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-purple-600 cursor-pointer"
+                            />
+                            <label htmlFor={`supervisor-area-new-${area.id}`} className="text-sm cursor-pointer">
+                              {area.nombre}
+                            </label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+                </>
+                )}
+
+                <div className={`flex justify-end gap-3 pt-4 border-t ${
+                  formData.rol === 'Supervisor' && editingUser ? 'col-span-2' : ''
+                }`}>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>
