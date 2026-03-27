@@ -884,6 +884,7 @@ const DashboardPage = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {/* Row 1: Proveedor y Folio Fiscal */}
                   <FormFieldWithExtraction
                     label="Proveedor"
                     fieldName="nombre_proveedor"
@@ -919,22 +920,12 @@ const DashboardPage = () => {
                     />
                   </FormFieldWithExtraction>
 
+                  {/* Row 2: Área y Monto */}
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="area" className="text-sm">Área *</Label>
                     <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
                       {areas.find(a => a.id === user?.area_id)?.nombre || 'Cargando...'}
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-md">
-                    <Checkbox
-                      id="requiere_autorizacion"
-                      checked={formData.requiere_autorizacion}
-                      onCheckedChange={(checked) => setFormData({ ...formData, requiere_autorizacion: checked })}
-                    />
-                    <Label htmlFor="requiere_autorizacion" className="text-sm cursor-pointer">
-                      Esta factura requiere aprobación del supervisor
-                    </Label>
                   </div>
 
                   <FormFieldWithExtraction
@@ -957,54 +948,72 @@ const DashboardPage = () => {
                     />
                   </FormFieldWithExtraction>
 
-                  <FormFieldWithExtraction
-                    label="Fecha de Vencimiento"
-                    fieldName="fecha_vencimiento"
-                    extractionStatus={extractionStatus}
-                    required
-                  >
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                          data-testid="dashboard-date-btn"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.fecha_vencimiento ? (
-                            format(formData.fecha_vencimiento, 'PPP', { locale: es })
-                          ) : (
-                            <span className="text-muted-foreground">Seleccionar fecha</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={formData.fecha_vencimiento}
-                          onSelect={(date) => setFormData({ ...formData, fecha_vencimiento: date })}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </FormFieldWithExtraction>
-
-                  <FormFieldWithExtraction
-                    label="Descripción"
-                    fieldName="descripcion_factura"
-                    extractionStatus={extractionStatus}
-                    required
-                  >
-                    <Textarea
-                      id="descripcion"
-                      value={formData.descripcion_factura}
-                      onChange={(e) => setFormData({ ...formData, descripcion_factura: e.target.value })}
-                      placeholder="Descripción de la factura..."
-                      rows={2}
+                  {/* Row 3: Fecha de Vencimiento (full width) */}
+                  <div className="sm:col-span-1">
+                    <FormFieldWithExtraction
+                      label="Fecha de Vencimiento"
+                      fieldName="fecha_vencimiento"
+                      extractionStatus={extractionStatus}
                       required
-                      data-testid="dashboard-description-input"
+                    >
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            data-testid="dashboard-date-btn"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.fecha_vencimiento ? (
+                              format(formData.fecha_vencimiento, 'PPP', { locale: es })
+                            ) : (
+                              <span className="text-muted-foreground">Seleccionar fecha</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.fecha_vencimiento}
+                            onSelect={(date) => setFormData({ ...formData, fecha_vencimiento: date })}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </FormFieldWithExtraction>
+                  </div>
+
+                  {/* Row 4: Descripción (full width) */}
+                  <div className="sm:col-span-2">
+                    <FormFieldWithExtraction
+                      label="Descripción"
+                      fieldName="descripcion_factura"
+                      extractionStatus={extractionStatus}
+                      required
+                    >
+                      <Textarea
+                        id="descripcion"
+                        value={formData.descripcion_factura}
+                        onChange={(e) => setFormData({ ...formData, descripcion_factura: e.target.value })}
+                        placeholder="Descripción de la factura..."
+                        rows={2}
+                        required
+                        data-testid="dashboard-description-input"
+                      />
+                    </FormFieldWithExtraction>
+                  </div>
+
+                  {/* Row 5: Checkbox Requiere Autorización (full width, al final) */}
+                  <div className="sm:col-span-2 flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-md">
+                    <Checkbox
+                      id="requiere_autorizacion"
+                      checked={formData.requiere_autorizacion}
+                      onCheckedChange={(checked) => setFormData({ ...formData, requiere_autorizacion: checked })}
                     />
-                  </FormFieldWithExtraction>
+                    <Label htmlFor="requiere_autorizacion" className="text-sm cursor-pointer">
+                      Esta factura requiere aprobación del supervisor
+                    </Label>
+                  </div>
                 </div>
 
                 <Button
