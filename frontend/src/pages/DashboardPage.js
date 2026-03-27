@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
-import { useInvoiceExtraction } from '../hooks/useInvoiceExtraction';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useDropzone } from 'react-dropzone';
@@ -16,6 +15,7 @@ import FormFieldWithExtraction from '../components/FormFieldWithExtraction';
 import { PdfOcrSection } from '../components/PdfOcrSection';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
+import InvoiceRegistrationForm from '../components/InvoiceRegistrationForm';
 import { parseDateOnly } from '../lib/date';
 import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
@@ -183,16 +183,8 @@ const DashboardPage = () => {
   );
 
   // Form state for Usuario Área
-  const [formData, setFormData] = useState({
-    nombre_proveedor: '',
-    descripcion_factura: '',
-    monto: '',
-    fecha_vencimiento: null,
-    folio_fiscal: '',
-    requiere_autorizacion: false,
-  });
-  const [pdfFile, setPdfFile] = useState(null);
-  const [xmlFile, setXmlFile] = useState(null);
+  // NOTA: Estos estados ahora están en InvoiceRegistrationForm component
+  // Se mantienen aquí solo para referencias/callbacks si es necesario
   const [supervisorPendingInvoices, setSupervisorPendingInvoices] = useState([]);
   const [supervisorStats, setSupervisorStats] = useState(null);
   const [supervisorLoading, setSupervisorLoading] = useState(true);
@@ -200,12 +192,10 @@ const DashboardPage = () => {
   const [supervisorActionType, setSupervisorActionType] = useState(null); // 'approve' or 'reject'
   const [rejectComment, setRejectComment] = useState('');
   const [showSupervisorRejectDialog, setShowSupervisorRejectDialog] = useState(false);
-  const { extractedData, extractionStatus, isExtracting, extractFromXml, clearExtraction } = useInvoiceExtraction();
-
   const canViewStats = user?.rol === 'Administrador' || user?.rol === 'Tesorero';
   const isUsuarioArea = user?.rol === 'Usuario Área';
   const isSupervisor = user?.rol === 'Supervisor';
-  const canRegisterInvoices = user?.rol === 'Usuario Área' || user?.rol === 'Administrador';
+  const canRegisterInvoices = user?.rol === 'Usuario Área' || user?.rol === 'Administrador' || user?.rol === 'Supervisor';
 
   // Helpers compartidos de validación y configuración HTTP
   const getMultipartAuthConfig = useCallback(() => ({
@@ -665,166 +655,6 @@ const DashboardPage = () => {
     }
   }, [isSupervisor, fetchSupervisorPendingInvoices, fetchSupervisorStats]);
 
-  // Extracción automática de datos cuando se carga un PDF
-  useEffect(() => {
-    if (xmlFile) {
-      // Intentar extraer datos del XML
-      console.log('📄 Iniciando extracción del XML CFDI:', xmlFile.name);
-      extractFromXml(xmlFile).then((data) => {
-        console.log('📨 Datos retornados por extractFromXml:', data);
-        if (data) {
-          console.log('🔄 Autocompletando formulario con datos extraídos...');
-          // Autocompletar campos con datos extraídos (mapear nuevos nombres a campos de forma)
-          setFormData(prev => {
-            const updatedData = {
-              ...prev,
-              nombre_proveedor: data.razon_social || prev.nombre_proveedor,
-              monto: data.total || prev.monto,
-              folio_fiscal: data.folio_fiscal || prev.folio_fiscal,
-              fecha_vencimiento: data.fecha_emision 
-                ? new Date(data.fecha_emision)
-                : prev.fecha_vencimiento,
-              descripcion_factura: data.descripcion_factura || prev.descripcion_factura,
-            };
-            console.log('✅ FormData actualizado:', updatedData);
-            return updatedData;
-          });
-
-          // Mostrar notificación
-          const filledCount = [
-            data.razon_social,
-            data.total,
-            data.folio_fiscal,
-            data.fecha_emision,
-            data.descripcion_factura
-          ].filter(v => v).length;
-          
-          console.log(`📊 Campos completados: ${filledCount}`);
-          toast.success(`✓ ${filledCount} campos completados automáticamente`);
-        } else {
-          console.warn('⚠️ No se obtuvieron datos del XML');
-          toast.info('No se pudieron extraer datos del XML. Completa los campos manualmente.');
-        }
-      }).catch((err) => {
-        console.error('❌ Error en promise de extracción:', err);
-      });
-    }
-  }, [xmlFile, extractFromXml]);
-  const { getRootProps: getInvoicePdfRootProps, getInputProps: getInvoicePdfInputProps, isDragActive: isInvoicePdfDragActive } = useDropzone({
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    maxSize: MAX_PDF_SIZE_BYTES,
-    multiple: false,
-    noKeyboard: true,
-    onDrop: (acceptedFiles, rejectedFiles) => {
-      if (rejectedFiles.length > 0) {
-        const error = rejectedFiles[0].errors[0];
-        handleDropzoneRejection(error.code);
-        return;
-      }
-      if (acceptedFiles.length > 0) {
-        setPdfFile(acceptedFiles[0]);
-      }
-    }
-  }, [handleDropzoneRejection]);
-
-  // Dropzone for payment proof
-  const { getRootProps: getProofRootProps, getInputProps: getProofInputProps, isDragActive: isProofDragActive } = useDropzone({
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    maxSize: MAX_PDF_SIZE_BYTES,
-    multiple: false,
-    noKeyboard: true,
-    onDrop: (acceptedFiles, rejectedFiles) => {
-      if (rejectedFiles.length > 0) {
-        const error = rejectedFiles[0].errors[0];
-        handleDropzoneRejection(error.code);
-        return;
-      }
-      if (acceptedFiles.length > 0) {
-        const file = acceptedFiles[0];
-        const validationError = getPdfValidationError(file);
-        if (validationError) {
-          toast.error(validationError);
-          return;
-        }
-
-        setPaymentProofFile(file);
-        toast.success('Archivo listo. Presiona "Confirmar cambios" para guardar.');
-      }
-    }
-  }, [getPdfValidationError, handleDropzoneRejection]);
-
-  const resetForm = () => {
-    setFormData({
-      nombre_proveedor: '',
-      descripcion_factura: '',
-      monto: '',
-      fecha_vencimiento: null,
-      folio_fiscal: '',
-      requiere_autorizacion: false,
-    });
-    setPdfFile(null);
-    setXmlFile(null);
-    clearExtraction();
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Bloquear en modo tour
-    if (demoMode) {
-      toast.error('No puedes crear facturas durante el tour de demostración');
-      return;
-    }
-    
-    if (!pdfFile) {
-      toast.error('Debe adjuntar un archivo PDF');
-      return;
-    }
-
-    if (!formData.fecha_vencimiento) {
-      toast.error('Debe seleccionar una fecha de vencimiento');
-      return;
-    }
-
-    if (!formData.nombre_proveedor || !formData.monto || !formData.fecha_vencimiento) {
-      toast.error('Por favor completa los campos obligatorios');
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const data = new FormData();
-      data.append('nombre_proveedor', formData.nombre_proveedor);
-      data.append('descripcion_factura', formData.descripcion_factura);
-      data.append('monto', formData.monto);
-      data.append('fecha_vencimiento', format(formData.fecha_vencimiento, 'yyyy-MM-dd'));
-      data.append('folio_fiscal', formData.folio_fiscal);
-      data.append('requiere_autorizacion', formData.requiere_autorizacion);
-      data.append('pdf_file', pdfFile);
-      if (xmlFile) {
-        data.append('xml_file', xmlFile);
-      }
-
-      await axios.post(`${API_URL}/api/invoices`, data, {
-        ...getMultipartAuthConfig()
-      });
-
-      toast.success('Factura registrada exitosamente');
-      resetForm();
-      fetchMyInvoices();
-    } catch (error) {
-      console.error('Error creating invoice:', error);
-      toast.error(error.response?.data?.detail || 'Error al registrar factura');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -845,199 +675,22 @@ const DashboardPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Invoice Registration Form */}
-          <Card className="bg-white border border-zinc-200" data-tour="invoice-form">
-            <CardHeader className="border-b border-zinc-100 bg-zinc-50/50 p-4 sm:p-6">
-              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
-                <Plus className="w-5 h-5 text-red-600 flex-shrink-0" />
-                <span>Registrar Nueva Factura</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6">
-              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-                <div className="mb-2 sm:mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-2 mb-3">
-                    <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs text-blue-700 mt-1">Sube la factura y los datos se rellenarán automáticamente</p>
-                    </div>
-                  </div>
-                  <div data-tour="upload-pdf">
-                    <PdfOcrSection
-                      pdfFile={pdfFile}
-                      xmlFile={xmlFile}
-                      onFilesChange={(files) => {
-                        setPdfFile(files.pdfFile || pdfFile);
-                        setXmlFile(files.xmlFile || xmlFile);
-                      }}
-                      isExtracting={isExtracting}
-                      extractionStatus={extractionStatus}
-                      extractedData={extractedData}
-                      onChangeFiles={() => {
-                        setPdfFile(null);
-                        setXmlFile(null);
-                        clearExtraction();
-                      }}
-                      required
-                      inputId="dashboard-pdf-input"
-                    />
-                  </div>
-                </div>
+          <InvoiceRegistrationForm
+            areas={areas}
+            user={user}
+            token={token}
+            onInvoiceCreated={() => {
+              // Refrescar facturas después de registrar
+              if (isUsuarioArea) {
+                fetchMyInvoices();
+              }
+            }}
+            title={isSupervisor ? 'Registrar Factura para Supervisar' : 'Registrar Nueva Factura'}
+            data-tour="invoice-form"
+          />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {/* Row 1: Proveedor y Folio Fiscal */}
-                  <FormFieldWithExtraction
-                    label="Proveedor"
-                    fieldName="nombre_proveedor"
-                    extractionStatus={extractionStatus}
-                    required
-                  >
-                    <Input
-                      id="nombre_proveedor"
-                      value={formData.nombre_proveedor}
-                      onChange={(e) => setFormData({ ...formData, nombre_proveedor: e.target.value })}
-                      placeholder="Empresa S.A. de C.V."
-                      required
-                      data-testid="dashboard-provider-input"
-                      className="text-base"
-                    />
-                  </FormFieldWithExtraction>
-
-                  <FormFieldWithExtraction
-                    label="Folio Fiscal"
-                    fieldName="folio_fiscal"
-                    extractionStatus={extractionStatus}
-                    required
-                  >
-                    <Input
-                      id="folio_fiscal"
-                      value={formData.folio_fiscal}
-                      onChange={(e) => setFormData({ ...formData, folio_fiscal: e.target.value })}
-                      placeholder="ABC123-DEF456"
-                      required
-                      data-testid="dashboard-folio-input"
-                      data-tour="input-folio"
-                      className="text-base"
-                    />
-                  </FormFieldWithExtraction>
-
-                  {/* Row 2: Área y Monto */}
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="area" className="text-sm">Área *</Label>
-                    <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
-                      {areas.find(a => a.id === user?.area_id)?.nombre || 'Cargando...'}
-                    </div>
-                  </div>
-
-                  <FormFieldWithExtraction
-                    label="Monto"
-                    fieldName="monto"
-                    extractionStatus={extractionStatus}
-                    required
-                  >
-                    <Input
-                      id="monto"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.monto}
-                      onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
-                      placeholder="10000.00"
-                      required
-                      data-testid="dashboard-amount-input"
-                      className="text-base"
-                    />
-                  </FormFieldWithExtraction>
-
-                  {/* Row 3: Fecha de Vencimiento (full width) */}
-                  <div className="sm:col-span-1">
-                    <FormFieldWithExtraction
-                      label="Fecha de Vencimiento"
-                      fieldName="fecha_vencimiento"
-                      extractionStatus={extractionStatus}
-                      required
-                    >
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                            data-testid="dashboard-date-btn"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {formData.fecha_vencimiento ? (
-                              format(formData.fecha_vencimiento, 'PPP', { locale: es })
-                            ) : (
-                              <span className="text-muted-foreground">Seleccionar fecha</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={formData.fecha_vencimiento}
-                            onSelect={(date) => setFormData({ ...formData, fecha_vencimiento: date })}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </FormFieldWithExtraction>
-                  </div>
-
-                  {/* Row 4: Descripción (full width) */}
-                  <div className="sm:col-span-2">
-                    <FormFieldWithExtraction
-                      label="Descripción"
-                      fieldName="descripcion_factura"
-                      extractionStatus={extractionStatus}
-                      required
-                    >
-                      <Textarea
-                        id="descripcion"
-                        value={formData.descripcion_factura}
-                        onChange={(e) => setFormData({ ...formData, descripcion_factura: e.target.value })}
-                        placeholder="Descripción de la factura..."
-                        rows={2}
-                        required
-                        data-testid="dashboard-description-input"
-                      />
-                    </FormFieldWithExtraction>
-                  </div>
-
-                  {/* Row 5: Checkbox Requiere Autorización (full width, al final) */}
-                  <div className="sm:col-span-2 flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-md">
-                    <Checkbox
-                      id="requiere_autorizacion"
-                      checked={formData.requiere_autorizacion}
-                      onCheckedChange={(checked) => setFormData({ ...formData, requiere_autorizacion: checked })}
-                    />
-                    <Label htmlFor="requiere_autorizacion" className="text-sm cursor-pointer">
-                      Esta factura requiere aprobación del supervisor
-                    </Label>
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wide text-sm h-11"
-                  disabled={submitting || !pdfFile}
-                  data-testid="dashboard-submit-btn"
-                  data-tour="btn-registrar"
-                >
-                  {submitting ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Registrando...
-                    </div>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Confirmar y registrar factura
-                    </>
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          {/* Spacer for old card - replaced with component */}
+          {false && <div />}
 
           {/* Recent Invoices */}
           <Card className="bg-white border border-zinc-200" data-tour="mis-facturas">
@@ -1298,6 +951,13 @@ const DashboardPage = () => {
             </h1>
             <p className="text-zinc-500 mt-1">Aprobación de facturas supervisadas</p>
           </div>
+          <Button
+            onClick={() => setShowRegisterFormDialog(true)}
+            className="bg-red-600 hover:bg-red-700 h-10 gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Registrar Factura
+          </Button>
         </div>
 
         {/* Stats Grid */}
@@ -1503,6 +1163,31 @@ const DashboardPage = () => {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Register Invoice Dialog (Supervisor) */}
+        <Dialog open={showRegisterFormDialog} onOpenChange={setShowRegisterFormDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold font-[Chivo] flex items-center gap-2">
+                <Plus className="w-5 h-5 text-red-600" />
+                Registrar Factura
+              </DialogTitle>
+              <DialogDescription>Registra una factura para una de tus empresas supervisadas</DialogDescription>
+            </DialogHeader>
+            <InvoiceRegistrationForm
+              areas={areas}
+              user={user}
+              token={token}
+              onInvoiceCreated={() => {
+                setShowRegisterFormDialog(false);
+                fetchSupervisorPendingInvoices();
+                fetchSupervisorStats();
+              }}
+              title={null}
+              isDialog
+            />
           </DialogContent>
         </Dialog>
       </div>

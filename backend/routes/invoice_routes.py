@@ -57,6 +57,7 @@ def create_invoice(
     requiere_autorizacion: bool = Form(default=False),
     pdf_file: UploadFile = File(...),
     xml_file: Optional[UploadFile] = File(None),
+    empresa_id: Optional[str] = Form(None),  # Para supervisores: empresa específica
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -70,9 +71,27 @@ def create_invoice(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Validar que el usuario tiene empresa asignada
-    if not current_user.empresa_id:
-        raise HTTPException(status_code=403, detail="El usuario no tiene empresa asignada")
+    # Determinar la empresa a usar según el rol del usuario
+    if current_user.rol == RoleEnum.SUPERVISOR.value:
+        # Supervisor debe especificar una empresa
+        if not empresa_id:
+            raise HTTPException(status_code=400, detail="Supervisor debe especificar una empresa")
+        
+        # Validar que el supervisor tiene asignada esa empresa
+        supervisor_empresa = db.query(SupervisorEmpresa).filter(
+            SupervisorEmpresa.supervisor_id == current_user.id,
+            SupervisorEmpresa.empresa_id == empresa_id
+        ).first()
+        
+        if not supervisor_empresa:
+            raise HTTPException(status_code=403, detail="El supervisor no tiene asignada esa empresa")
+        
+        target_empresa_id = empresa_id
+    else:
+        # Usuario Área o Admin: usar su empresa asignada
+        if not current_user.empresa_id:
+            raise HTTPException(status_code=403, detail="El usuario no tiene empresa asignada")
+        target_empresa_id = current_user.empresa_id
 
     # Validar PDF (tamaño, extensión, vacío) - requerido
     content = validate_pdf_upload(pdf_file)
@@ -133,7 +152,7 @@ def create_invoice(
         invoice_obj = Invoice(
             nombre_proveedor=nombre_proveedor,
             descripcion_factura=descripcion_factura,
-            empresa_factura=current_user.empresa_id,
+            empresa_factura=target_empresa_id,
             monto=monto,
             fecha_vencimiento=fecha_vencimiento,
             folio_fiscal=folio_fiscal,
