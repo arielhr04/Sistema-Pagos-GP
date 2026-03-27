@@ -167,19 +167,38 @@ const UsersPage = () => {
           rol: formData.rol,
           empresa_id: formData.empresa_id || null,
         };
-        await axios.put(`${API_URL}/api/users/${editingUser.id}`, updateData, getAuthHeader());
+        console.log('🔵 [UPDATE USER] Sending data:', updateData, 'User ID:', editingUser.id);
+        
+        const updateResponse = await axios.put(`${API_URL}/api/users/${editingUser.id}`, updateData, getAuthHeader());
+        console.log('✅ [UPDATE USER] Response:', updateResponse.data);
+        
+        // Si es supervisor, también guardar empresas supervisadas si cambiaron
+        if (formData.rol === 'Supervisor' && hasSupervisorChanges) {
+          console.log('🔵 [SUPERVISOR EMPRESAS] Saving supervisadas:', formData.empresas_supervisadas);
+          await axios.post(
+            `${API_URL}/api/users/${editingUser.id}/empresas-supervisadas`,
+            { empresa_ids: formData.empresas_supervisadas },
+            getAuthHeader()
+          );
+          console.log('✅ [SUPERVISOR EMPRESAS] Saved successfully');
+        }
+        
         toast.success('Usuario actualizado');
       } else {
+        console.log('🔵 [CREATE USER] Sending new user data');
         const response = await axios.post(`${API_URL}/api/users`, formData, getAuthHeader());
+        console.log('✅ [CREATE USER] Created with ID:', response.data.id);
         
         // Si es supervisor, asignar empresas supervisadas
         if (formData.rol === 'Supervisor' && formData.empresas_supervisadas.length > 0) {
           const newUserId = response.data.id;
+          console.log('🔵 [NEW SUPERVISOR] Assigning empresas:', formData.empresas_supervisadas);
           await axios.post(
             `${API_URL}/api/users/${newUserId}/empresas-supervisadas`,
             { empresa_ids: formData.empresas_supervisadas },
             getAuthHeader()
           );
+          console.log('✅ [NEW SUPERVISOR] Empresas assigned');
         }
         
         toast.success('Usuario creado');
@@ -189,7 +208,7 @@ const UsersPage = () => {
       setInitialEmpresasSupervisadas([]);
       fetchUsers();
     } catch (error) {
-      console.error('Error saving user:', error);
+      console.error('❌ [SUBMIT ERROR]', error.response?.data || error.message);
       toast.error(error.response?.data?.detail || 'Error al guardar usuario');
     } finally {
       setSubmitting(false);

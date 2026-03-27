@@ -116,22 +116,34 @@ def get_users(current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)
 
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(user_id: str, user_data: UserUpdate, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
+    logger.info(f"🔵 [USER UPDATE] user_id={user_id}, datos recibidos: {user_data}")
+    
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
+        logger.error(f"❌ [USER UPDATE] Usuario no encontrado: {user_id}")
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     if user_data.nombre is not None:
+        logger.info(f"🔵 [USER UPDATE] Actualizando nombre: {user.nombre} -> {user_data.nombre}")
         user.nombre = user_data.nombre
     if user_data.rol is not None:
+        logger.info(f"🔵 [USER UPDATE] Actualizando rol: {user.rol} -> {user_data.rol.value}")
         user.rol = user_data.rol.value
-    if user_data.empresa_id is not None:
-        user.empresa_id = user_data.empresa_id if user_data.empresa_id else None
+    
+    # Actualizar empresa_id (puede ser None, string vacío, o UUID válido)
+    if hasattr(user_data, 'empresa_id') and user_data.empresa_id is not None:
+        new_empresa_id = user_data.empresa_id if user_data.empresa_id else None
+        logger.info(f"🔵 [USER UPDATE] Actualizando empresa_id: {user.empresa_id} -> {new_empresa_id}")
+        user.empresa_id = new_empresa_id
+    
     if user_data.activo is not None:
+        logger.info(f"🔵 [USER UPDATE] Actualizando activo: {user.activo} -> {user_data.activo}")
         user.activo = user_data.activo
+    
     user.updated_at = datetime.utcnow()
-
     db.commit()
     db.refresh(user)
+    logger.info(f"✅ [USER UPDATE] Usuario actualizado exitosamente: {user_id}")
 
     empresa_nombre = None
     if user.empresa_id:
