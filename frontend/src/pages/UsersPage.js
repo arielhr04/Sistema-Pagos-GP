@@ -418,7 +418,7 @@ const UsersPage = () => {
                 Nuevo Usuario
               </Button>
             </DialogTrigger>
-            <DialogContent className={formData.rol === 'Supervisor' && editingUser ? "max-w-4xl" : "max-w-md"}>
+            <DialogContent className={`${formData.rol === 'Supervisor' && editingUser ? "max-w-4xl" : "max-w-md"} max-h-[85vh] flex flex-col`}>
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold font-[Chivo]">
                   {editingUser ? 'Editar Usuario' : 'Crear Usuario'}
@@ -519,10 +519,10 @@ const UsersPage = () => {
 
                 {/* COLUMNA DERECHA: Empresas supervisadas (Solo para supervisores en edición) */}
                 {formData.rol === 'Supervisor' && editingUser && (
-                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200 flex flex-col">
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200 flex flex-col h-full">
                     <Label className="font-semibold text-purple-900">Empresas a Supervisar</Label>
-                    <p className="text-sm text-purple-700 mb-3">Selecciona las empresas que este supervisor puede autorizar facturas</p>
-                    <div className="space-y-2 flex-1 overflow-y-auto pr-2">
+                    <p className="text-sm text-purple-700 mb-2">Selecciona las empresas que este supervisor puede autorizar facturas</p>
+                    <div className="space-y-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-100">
                       {areas.length === 0 ? (
                         <p className="text-sm text-gray-500">No hay empresas disponibles</p>
                       ) : (
