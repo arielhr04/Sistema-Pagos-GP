@@ -130,8 +130,8 @@ def update_user(user_id: str, user_data: UserUpdate, current_user: User = Depend
         logger.info(f"🔵 [USER UPDATE] Actualizando rol: {user.rol} -> {user_data.rol.value}")
         user.rol = user_data.rol.value
     
-    # Actualizar empresa_id (puede ser None, string vacío, o UUID válido)
-    if hasattr(user_data, 'empresa_id') and user_data.empresa_id is not None:
+    # Actualizar empresa_id (puede ser None para "Sin empresa", string vacío, o UUID válido)
+    if hasattr(user_data, 'empresa_id'):
         new_empresa_id = user_data.empresa_id if user_data.empresa_id else None
         logger.info(f"🔵 [USER UPDATE] Actualizando empresa_id: {user.empresa_id} -> {new_empresa_id}")
         user.empresa_id = new_empresa_id

@@ -517,8 +517,12 @@ const UsersPage = () => {
                 <div className="space-y-2">
                   <Label htmlFor="area">Empresa (opcional)</Label>
                   <Select
-                    value={formData.empresa_id || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, empresa_id: value === "none" ? "" : value })}
+                    value={formData.empresa_id ? formData.empresa_id : "none"}
+                    onValueChange={(value) => {
+                      const newEmpresaId = value === "none" ? "" : value;
+                      console.log('🔵 [SELECT EMPRESA] Changed to:', newEmpresaId, '(display value:', value + ')');
+                      setFormData({ ...formData, empresa_id: newEmpresaId });
+                    }}
                   >
                     <SelectTrigger data-testid="user-area-select">
                       <SelectValue placeholder="Seleccionar empresa" />
