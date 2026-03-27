@@ -430,7 +430,7 @@ const UsersPage = () => {
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className={`mt-4 ${
+              <form onSubmit={handleSubmit} className={`mt-4 flex-1 overflow-y-auto pr-2 ${
                 formData.rol === 'Supervisor' && editingUser 
                   ? 'grid grid-cols-2 gap-6' 
                   : 'space-y-4'
@@ -628,7 +628,7 @@ const UsersPage = () => {
                 </>
                 )}
 
-                <div className={`flex justify-end gap-3 pt-4 border-t ${
+                <div className={`flex justify-end gap-2 pt-3 border-t mt-4 shrink-0 ${
                   formData.rol === 'Supervisor' && editingUser ? 'col-span-2' : ''
                 }`}>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
