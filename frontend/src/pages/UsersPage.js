@@ -430,12 +430,11 @@ const UsersPage = () => {
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className={`mt-4 flex-1 overflow-y-auto pr-2 ${
+              <form onSubmit={handleSubmit} className={`mt-4 ${
                 formData.rol === 'Supervisor' && editingUser 
                   ? 'grid grid-cols-2 gap-6' 
                   : 'space-y-4'
               }`}>
-                {/* COLUMNA IZQUIERDA: Campos del usuario */}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="nombre">Nombre Completo *</Label>
@@ -515,6 +514,21 @@ const UsersPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                  {/* Botones principales - En columna izquierda */}
+                  <div className="flex gap-2 pt-3 border-t mt-4">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                      disabled={submitting}
+                      data-testid="user-submit-btn"
+                    >
+                      {submitting ? 'Guardando...' : editingUser ? 'Actualizar' : 'Crear'}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* COLUMNA DERECHA: Empresas supervisadas (Solo para supervisores en edición) */}
@@ -628,21 +642,6 @@ const UsersPage = () => {
                 </>
                 )}
 
-                <div className={`flex justify-end gap-2 pt-3 border-t mt-4 shrink-0 ${
-                  formData.rol === 'Supervisor' && editingUser ? 'col-span-2' : ''
-                }`}>
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                    disabled={submitting}
-                    data-testid="user-submit-btn"
-                  >
-                    {submitting ? 'Guardando...' : editingUser ? 'Actualizar' : 'Crear'}
-                  </Button>
-                </div>
               </form>
             </DialogContent>
           </Dialog>
@@ -685,7 +684,7 @@ const UsersPage = () => {
                     <TableHead className="font-bold">Nombre</TableHead>
                     <TableHead className="font-bold">Correo</TableHead>
                     <TableHead className="font-bold">Rol</TableHead>
-                    <TableHead className="font-bold">Área</TableHead>
+                    <TableHead className="font-bold">Empresa</TableHead>
                     <TableHead className="font-bold text-center">Estado</TableHead>
                     <TableHead className="font-bold text-center">Acciones</TableHead>
                   </TableRow>
@@ -700,7 +699,7 @@ const UsersPage = () => {
                           {user.rol}
                         </Badge>
                       </TableCell>
-                      <TableCell>{user.area_nombre || '-'}</TableCell>
+                      <TableCell>{user.empresa_nombre || '-'}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
                           {user.activo ? (
