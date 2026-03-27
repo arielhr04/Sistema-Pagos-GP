@@ -1737,7 +1737,31 @@ const DashboardPage = () => {
           </DialogHeader>
           {formData && (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* PDF/XML Upload Section - at the top */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <PdfOcrSection
+                  pdfFile={pdfFile}
+                  xmlFile={xmlFile}
+                  onFilesChange={(files) => {
+                    setPdfFile(files.pdfFile || pdfFile);
+                    setXmlFile(files.xmlFile || xmlFile);
+                  }}
+                  isExtracting={isExtracting}
+                  extractionStatus={extractionStatus}
+                  extractedData={extractedData}
+                  onChangeFiles={() => {
+                    setPdfFile(null);
+                    setXmlFile(null);
+                    clearExtraction();
+                  }}
+                  required
+                  inputId="admin-pdf-input"
+                />
+              </div>
+
+              {/* Form Fields Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Row 1: Proveedor y Folio Fiscal */}
                 <div className="space-y-2">
                   <Label htmlFor="nombre_proveedor_reg">Proveedor *</Label>
                   <Input
@@ -1758,6 +1782,8 @@ const DashboardPage = () => {
                     required
                   />
                 </div>
+
+                {/* Row 2: Área y Monto */}
                 <div className="space-y-2">
                   <Label htmlFor="area_reg">Área *</Label>
                   <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
@@ -1777,7 +1803,9 @@ const DashboardPage = () => {
                     required
                   />
                 </div>
-                <div className="space-y-2 md:col-span-2">
+
+                {/* Row 3: Fecha de Vencimiento (full width) */}
+                <div className="space-y-2 md:col-span-1">
                   <Label>Fecha de Vencimiento *</Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1803,6 +1831,8 @@ const DashboardPage = () => {
                     </PopoverContent>
                   </Popover>
                 </div>
+
+                {/* Row 4: Descripción (full width) */}
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="descripcion_reg">Descripción</Label>
                   <Textarea
@@ -1813,25 +1843,20 @@ const DashboardPage = () => {
                     rows={3}
                   />
                 </div>
-                <PdfOcrSection
-                  pdfFile={pdfFile}
-                  xmlFile={xmlFile}
-                  onFilesChange={(files) => {
-                    setPdfFile(files.pdfFile || pdfFile);
-                    setXmlFile(files.xmlFile || xmlFile);
-                  }}
-                  isExtracting={isExtracting}
-                  extractionStatus={extractionStatus}
-                  extractedData={extractedData}
-                  onChangeFiles={() => {
-                    setPdfFile(null);
-                    setXmlFile(null);
-                    clearExtraction();
-                  }}
-                  required
-                  inputId="admin-pdf-input"
-                />
+
+                {/* Row 5: Requiere Autorización (full width, at the bottom) */}
+                <div className="md:col-span-2 flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-md">
+                  <Checkbox
+                    id="requiere_autorizacion_reg"
+                    checked={formData.requiere_autorizacion}
+                    onCheckedChange={(checked) => setFormData({ ...formData, requiere_autorizacion: checked })}
+                  />
+                  <Label htmlFor="requiere_autorizacion_reg" className="text-sm cursor-pointer">
+                    Esta factura requiere aprobación del supervisor
+                  </Label>
+                </div>
               </div>
+
               <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button
                   type="button"
