@@ -663,7 +663,7 @@ const DashboardPage = () => {
     );
   }
 
-  if (isUsuarioArea || user?.rol === 'Administrador') {
+  if (isUsuarioArea) {
     return (
       <div className="space-y-4 sm:space-y-6 animate-fade-in" data-testid="user-dashboard">
         <div>
