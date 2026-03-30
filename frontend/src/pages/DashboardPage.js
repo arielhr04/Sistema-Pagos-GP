@@ -1205,18 +1205,7 @@ const DashboardPage = () => {
           <p className="text-zinc-500 mt-1">Resumen general del sistema de facturas</p>
         </div>
         <Button
-          onClick={() => {
-            setFormData({
-              nombre_proveedor: '',
-              folio_fiscal: '',
-              monto: '',
-              fecha_vencimiento: null,
-              descripcion_factura: '',
-              requiere_autorizacion: false,
-            });
-            setPdfFile(null);
-            setShowRegisterFormDialog(true);
-          }}
+          onClick={() => setShowRegisterFormDialog(true)}
           className="bg-red-600 hover:bg-red-700 h-10 gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -1420,146 +1409,16 @@ const DashboardPage = () => {
             </DialogTitle>
             <DialogDescription>Completa todos los campos obligatorios marcados con *</DialogDescription>
           </DialogHeader>
-          {formData && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* PDF/XML Upload Section - at the top */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <PdfOcrSection
-                  pdfFile={pdfFile}
-                  xmlFile={xmlFile}
-                  onFilesChange={(files) => {
-                    setPdfFile(files.pdfFile || pdfFile);
-                    setXmlFile(files.xmlFile || xmlFile);
-                  }}
-                  isExtracting={isExtracting}
-                  extractionStatus={extractionStatus}
-                  extractedData={extractedData}
-                  onChangeFiles={() => {
-                    setPdfFile(null);
-                    setXmlFile(null);
-                    clearExtraction();
-                  }}
-                  required
-                  inputId="admin-pdf-input"
-                />
-              </div>
-
-              {/* Form Fields Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Row 1: Proveedor y Folio Fiscal */}
-                <div className="space-y-2">
-                  <Label htmlFor="nombre_proveedor_reg">Proveedor *</Label>
-                  <Input
-                    id="nombre_proveedor_reg"
-                    value={formData.nombre_proveedor}
-                    onChange={(e) => setFormData({ ...formData, nombre_proveedor: e.target.value })}
-                    placeholder="Empresa S.A. de C.V."
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="folio_fiscal_reg">Folio Fiscal *</Label>
-                  <Input
-                    id="folio_fiscal_reg"
-                    value={formData.folio_fiscal}
-                    onChange={(e) => setFormData({ ...formData, folio_fiscal: e.target.value })}
-                    placeholder="ABC123-DEF456"
-                    required
-                  />
-                </div>
-
-                {/* Row 2: Área y Monto */}
-                <div className="space-y-2">
-                  <Label htmlFor="area_reg">Área *</Label>
-                  <div className="px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 text-sm">
-                    {areas.find(a => a.id === user?.empresa_id)?.nombre || 'Cargando...'}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="monto_reg">Monto *</Label>
-                  <Input
-                    id="monto_reg"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.monto}
-                    onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
-                    placeholder="10000.00"
-                    required
-                  />
-                </div>
-
-                {/* Row 3: Fecha de Vencimiento (full width) */}
-                <div className="space-y-2 md:col-span-1">
-                  <Label>Fecha de Vencimiento *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.fecha_vencimiento ? (
-                          format(formData.fecha_vencimiento, 'PPP', { locale: es })
-                        ) : (
-                          <span className="text-muted-foreground">Seleccionar fecha</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={formData.fecha_vencimiento}
-                        onSelect={(date) => setFormData({ ...formData, fecha_vencimiento: date })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Row 4: Descripción (full width) */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="descripcion_reg">Descripción</Label>
-                  <Textarea
-                    id="descripcion_reg"
-                    value={formData.descripcion_factura}
-                    onChange={(e) => setFormData({ ...formData, descripcion_factura: e.target.value })}
-                    placeholder="Detalles adicionales sobre la factura..."
-                    rows={3}
-                  />
-                </div>
-
-                {/* Row 5: Requiere Autorización (full width, at the bottom) */}
-                <div className="md:col-span-2 flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-md">
-                  <Checkbox
-                    id="requiere_autorizacion_reg"
-                    checked={formData.requiere_autorizacion}
-                    onCheckedChange={(checked) => setFormData({ ...formData, requiere_autorizacion: checked })}
-                  />
-                  <Label htmlFor="requiere_autorizacion_reg" className="text-sm cursor-pointer">
-                    Esta factura requiere aprobación del supervisor
-                  </Label>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowRegisterFormDialog(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  {submitting ? 'Registrando...' : 'Registrar Factura'}
-                </Button>
-              </div>
-            </form>
-          )}
+          <InvoiceRegistrationForm
+            areas={areas}
+            user={user}
+            token={token}
+            onInvoiceCreated={() => {
+              setShowRegisterFormDialog(false);
+              fetchData();
+            }}
+            title={null}
+          />
         </DialogContent>
       </Dialog>
 
