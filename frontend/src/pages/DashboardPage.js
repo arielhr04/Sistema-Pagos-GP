@@ -136,17 +136,22 @@ const InvoiceInfoGrid = ({ invoice, formatCurrency, showStatus = false, statusSt
       <p className="text-xs text-zinc-500">Vencimiento</p>
       <p className="font-medium text-sm">{invoice.fecha_vencimiento.slice(0, 10)}</p>
     </div>
-    <div>
-      <p className="text-xs text-zinc-500">Registró</p>
-      <p className="font-medium text-sm">{invoice.created_by_nombre || '-'}</p>
-    </div>
-    <div>
-      <p className="text-xs text-zinc-500">Empresa</p>
-      <p className="font-medium text-sm">{invoice.empresa_nombre || '-'}</p>
-    </div>
     <div className="col-span-2">
       <p className="text-xs text-zinc-500">Descripción</p>
       <p className="text-sm">{invoice.descripcion_factura}</p>
+    </div>
+    <div className="col-span-2 rounded-lg border border-sky-200 bg-sky-50 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-700">Datos de Registro</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-sky-700/80">Registró</p>
+          <p className="font-medium text-sm text-sky-950">{invoice.created_by_nombre || '-'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-sky-700/80">Empresa</p>
+          <p className="font-medium text-sm text-sky-950">{invoice.empresa_nombre || '-'}</p>
+        </div>
+      </div>
     </div>
     {showStatus && (
       <div>

@@ -329,10 +329,6 @@ const SupervisorKanbanPage = () => {
                   <p className="font-semibold">{selectedInvoice.empresa_nombre}</p>
                 </div>
                 <div>
-                  <p className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Registró</p>
-                  <p className="font-semibold">{selectedInvoice.created_by_nombre || '-'}</p>
-                </div>
-                <div>
                   <p className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Estatus</p>
                   <Badge className={STATUS_COLORS[selectedInvoice.estatus] || 'bg-zinc-100 text-zinc-800'}>
                     {selectedInvoice.estatus}
@@ -344,6 +340,19 @@ const SupervisorKanbanPage = () => {
                     <p className="text-zinc-700">{selectedInvoice.descripcion_factura}</p>
                   </div>
                 )}
+                <div className="col-span-2 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-700">Datos de Registro</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-sky-700/80 uppercase tracking-wide">Registró</p>
+                      <p className="font-semibold text-sky-950">{selectedInvoice.created_by_nombre || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-sky-700/80 uppercase tracking-wide">Empresa</p>
+                      <p className="font-semibold text-sky-950">{selectedInvoice.empresa_nombre || '-'}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Approval status */}
