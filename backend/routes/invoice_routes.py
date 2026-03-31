@@ -778,39 +778,54 @@ def get_supervisor_pending_invoices(
     """
     Obtiene todas las facturas pendientes de aprobación para las empresas supervisadas por el usuario.
     """
-    # Obtener las empresas que supervisa este usuario
-    supervisor_empresas = db.query(SupervisorEmpresa).filter(
-        SupervisorEmpresa.supervisor_id == current_user.id
-    ).all()
-    
-    if not supervisor_empresas:
-        return []
-    
-    empresa_ids = [se.empresa_id for se in supervisor_empresas]
-    
-    # Obtener facturas pendientes de aprobación en esas empresas
-    facturas_pendientes = db.query(Invoice).filter(
-        Invoice.empresa_factura.in_(empresa_ids),
-        Invoice.estatus == InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value
-    ).order_by(Invoice.fecha_vencimiento.asc(), Invoice.created_at.asc()).offset(offset).limit(limit).all()
-    
-    # Precargar datos relacionados
-    empresa_ids_set = set(se.empresa_id for se in supervisor_empresas)
-    empresas = {a.id: a.nombre for a in db.query(Area).filter(Area.id.in_(empresa_ids_set)).all()}
-    usuarios = {u.id: u.nombre for u in db.query(User).filter(User.id.in_([f.created_by for f in facturas_pendientes])).all()}
-    
-    # Construir respuestas
-    respuestas = []
-    for inv in facturas_pendientes:
-        respuestas.append(
-            build_invoice_response(
-                inv,
-                empresa_nombre=empresas.get(inv.empresa_factura),
-                created_by_nombre=usuarios.get(inv.created_by),
-            )
+    if current_user.rol != RoleEnum.SUPERVISOR.value:
+        raise HTTPException(status_code=403, detail="Solo supervisores pueden acceder")
+
+    try:
+        # Obtener las empresas que supervisa este usuario
+        supervisor_empresas = db.query(SupervisorEmpresa).filter(
+            SupervisorEmpresa.supervisor_id == current_user.id
+        ).all()
+
+        if not supervisor_empresas:
+            return []
+
+        empresa_ids = [se.empresa_id for se in supervisor_empresas]
+
+        # Obtener facturas pendientes de aprobación en esas empresas
+        facturas_pendientes = db.query(Invoice).filter(
+            Invoice.empresa_factura.in_(empresa_ids),
+            Invoice.estatus == InvoiceStatusEnum.PENDIENTE_AUTORIZACION.value
+        ).order_by(Invoice.fecha_vencimiento.asc(), Invoice.created_at.asc()).offset(offset).limit(limit).all()
+
+        # Precargar datos relacionados
+        empresa_ids_set = set(empresa_ids)
+        empresas = {a.id: a.nombre for a in db.query(Area).filter(Area.id.in_(empresa_ids_set)).all()}
+
+        created_by_ids = [f.created_by for f in facturas_pendientes if f.created_by]
+        usuarios = (
+            {u.id: u.nombre for u in db.query(User).filter(User.id.in_(created_by_ids)).all()}
+            if created_by_ids
+            else {}
         )
-    
-    return respuestas
+
+        # Construir respuestas
+        respuestas = []
+        for inv in facturas_pendientes:
+            respuestas.append(
+                build_invoice_response(
+                    inv,
+                    empresa_nombre=empresas.get(inv.empresa_factura),
+                    created_by_nombre=usuarios.get(inv.created_by),
+                )
+            )
+
+        return respuestas
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error obteniendo facturas pendientes de supervisor: %s", e)
+        raise HTTPException(status_code=500, detail="Error al obtener pendientes de supervisor")
 
 
 @router.get("/invoices/supervisor/stats")
