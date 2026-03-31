@@ -5,9 +5,9 @@
  */
 
 import axios from 'axios';
-import mockDataService from '../services/mockDataService';
+import { resolveApiBaseUrl } from './apiBase';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+const API_URL = resolveApiBaseUrl();
 
 // Estado global de demo mode (será seteado desde TourContext)
 let globalDemoMode = false;

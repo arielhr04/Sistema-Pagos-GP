@@ -22,8 +22,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import { resolveApiBaseUrl } from '../lib/apiBase';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = resolveApiBaseUrl();
 const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**

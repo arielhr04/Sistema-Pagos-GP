@@ -246,8 +246,18 @@ def get_invoices(
     offset = (page - 1) * limit
     invoices = query.order_by(Invoice.created_at.desc()).offset(offset).limit(limit).all()
 
-    areas = {a.id: a.nombre for a in db.query(Area).all()}
-    users = {u.id: u.nombre for u in db.query(User).all()}
+    empresa_ids = {inv.empresa_factura for inv in invoices if inv.empresa_factura}
+    creator_ids = {inv.created_by for inv in invoices if inv.created_by}
+    areas = (
+        {a.id: a.nombre for a in db.query(Area).filter(Area.id.in_(empresa_ids)).all()}
+        if empresa_ids
+        else {}
+    )
+    users = (
+        {u.id: u.nombre for u in db.query(User).filter(User.id.in_(creator_ids)).all()}
+        if creator_ids
+        else {}
+    )
 
     review_dates = get_treasury_review_map(db, [inv.id for inv in invoices])
     proof_invoice_ids = get_invoice_document_presence_map(
@@ -770,7 +780,7 @@ def supervisor_reject_invoice(
 
 @router.get("/invoices/supervisor/pending", response_model=list)
 def get_supervisor_pending_invoices(
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -783,14 +793,13 @@ def get_supervisor_pending_invoices(
 
     try:
         # Obtener las empresas que supervisa este usuario
-        supervisor_empresas = db.query(SupervisorEmpresa).filter(
+        empresa_rows = db.query(SupervisorEmpresa.empresa_id).filter(
             SupervisorEmpresa.supervisor_id == current_user.id
         ).all()
+        empresa_ids = [row[0] for row in empresa_rows if row and row[0]]
 
-        if not supervisor_empresas:
+        if not empresa_ids:
             return []
-
-        empresa_ids = [se.empresa_id for se in supervisor_empresas]
 
         # Obtener facturas pendientes de aprobación en esas empresas
         facturas_pendientes = db.query(Invoice).filter(
@@ -802,7 +811,7 @@ def get_supervisor_pending_invoices(
         empresa_ids_set = set(empresa_ids)
         empresas = {a.id: a.nombre for a in db.query(Area).filter(Area.id.in_(empresa_ids_set)).all()}
 
-        created_by_ids = [f.created_by for f in facturas_pendientes if f.created_by]
+        created_by_ids = {f.created_by for f in facturas_pendientes if f.created_by}
         usuarios = (
             {u.id: u.nombre for u in db.query(User).filter(User.id.in_(created_by_ids)).all()}
             if created_by_ids

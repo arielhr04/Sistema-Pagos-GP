@@ -19,6 +19,7 @@ import InvoiceRegistrationForm from '../components/InvoiceRegistrationForm';
 import LoadingState from '../components/LoadingState';
 import { parseDateOnly } from '../lib/date';
 import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
+import { resolveApiBaseUrl } from '../lib/apiBase';
 import {
   Select,
   SelectContent,
@@ -67,7 +68,7 @@ import {
   Legend
 } from 'recharts';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = resolveApiBaseUrl();
 const CACHE_TTL_STATS_MS = 60 * 1000;
 const CACHE_TTL_AREAS_MS = 12 * 60 * 60 * 1000;
 const CACHE_TTL_MY_INVOICES_MS = 90 * 1000;
@@ -210,6 +211,7 @@ const DashboardPage = () => {
   const isUsuarioArea = user?.rol === 'Usuario Área';
   const isSupervisor = user?.rol === 'Supervisor';
   const canRegisterInvoices = user?.rol === 'Usuario Área' || user?.rol === 'Administrador' || user?.rol === 'Supervisor';
+  const supervisorCacheScope = user?.id || user?.email || 'anon';
 
   // Helpers compartidos de validación y configuración HTTP
   const getMultipartAuthConfig = useCallback(() => ({
@@ -423,12 +425,6 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Error replacing invoice PDF:', error);
       toast.error(error.response?.data?.detail || 'Error al cambiar el PDF de factura');
-    // Bloquear en modo tour
-    if (demoMode) {
-      toast.error('No puedes modificar facturas durante el tour de demostración');
-      return;
-    }
-
     } finally {
       setUpdating(false);
     }
@@ -598,16 +594,32 @@ const DashboardPage = () => {
   }, [canViewStats, isUsuarioArea, getAuthHeader, fetchAreas, fetchMyInvoices, user?.id, user?.email, demoMode, demoData]);
 
   const fetchSupervisorPendingInvoices = useCallback(async () => {
+    const cacheKey = buildCacheKey('supervisor-pending', supervisorCacheScope);
+    const cachedPending = readApiCache(cacheKey, 30 * 1000);
+    const hasCachedPending = Array.isArray(cachedPending);
+
+    if (hasCachedPending) {
+      setSupervisorPendingInvoices(cachedPending);
+      setSupervisorLoading(false);
+    }
+
     try {
-      const response = await axios.get(`${API_URL}/api/invoices/supervisor/pending?limit=20`, getAuthHeader());
-      setSupervisorPendingInvoices(response.data);
+      const response = await axios.get(`${API_URL}/api/invoices/supervisor/pending`, {
+        ...getAuthHeader(),
+        params: { limit: 20, offset: 0 },
+      });
+      const items = Array.isArray(response.data) ? response.data : [];
+      setSupervisorPendingInvoices(items);
+      writeApiCache(cacheKey, items);
     } catch (error) {
       console.error('Error fetching supervisor pending invoices:', error);
-      toast.error('Error al cargar facturas pendientes');
+      if (!hasCachedPending) {
+        toast.error('Error al cargar facturas pendientes');
+      }
     } finally {
       setSupervisorLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, supervisorCacheScope]);
 
   const fetchSupervisorStats = useCallback(async () => {
     try {

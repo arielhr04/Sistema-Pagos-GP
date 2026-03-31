@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/badge';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import LoadingState from '../components/LoadingState';
 import { parseDateOnly } from '../lib/date';
+import { resolveApiBaseUrl } from '../lib/apiBase';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = resolveApiBaseUrl();
 
 const STATUS_COLORS = {
   'Capturada': 'bg-zinc-100 text-zinc-800',
@@ -147,16 +148,19 @@ const SupervisorKanbanPage = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const empRes = await axios.get(`${API_URL}/api/areas/mis-empresas`, getAuthHeader());
-      const myEmpresas = empRes.data;
+      const [empRes, pendingRes] = await Promise.all([
+        axios.get(`${API_URL}/api/areas/mis-empresas`, getAuthHeader()),
+        axios.get(`${API_URL}/api/invoices/supervisor/pending`, {
+          ...getAuthHeader(),
+          params: { limit: 50, offset: 0 },
+        }),
+      ]);
+
+      const myEmpresas = Array.isArray(empRes.data) ? empRes.data : [];
       setEmpresas(myEmpresas);
 
       // Obtener solo pendientes de autorización y agrupar por empresa.
-      const pendingRes = await axios.get(
-        `${API_URL}/api/invoices/supervisor/pending?limit=100`,
-        getAuthHeader()
-      );
-      const pendingItems = pendingRes.data || [];
+      const pendingItems = Array.isArray(pendingRes.data) ? pendingRes.data : [];
 
       const map = {};
       myEmpresas.forEach((emp) => {
