@@ -216,6 +216,11 @@ const InvoicesPage = () => {
   }, [getAuthHeader, demoMode, demoData]);
 
   const fetchUsuarios = useCallback(async () => {
+    if (user?.rol !== 'Administrador') {
+      setUsuarios([]);
+      return;
+    }
+
     // Si estamos en modo tour, usar datos mock
     if (demoMode && demoData?.users) {
       try {
@@ -247,7 +252,7 @@ const InvoicesPage = () => {
         toast.error('Error al cargar usuarios');
       }
     }
-  }, [getAuthHeader, demoMode, demoData]);
+  }, [getAuthHeader, demoMode, demoData, user?.rol]);
 
   useEffect(() => {
     fetchAreas();
@@ -688,7 +693,7 @@ const InvoicesPage = () => {
                     className="h-9"
                   />
                 </div>
-                {(user?.rol === 'Administrador' || user?.rol === 'Tesorero') && (
+                {user?.rol === 'Administrador' && (
                   <div>
                     <Label className="text-xs text-zinc-500 mb-1 block">Usuario creador</Label>
                     <Select value={usuarioFilter} onValueChange={(val) => { setUsuarioFilter(val); setPage(1); }}>
