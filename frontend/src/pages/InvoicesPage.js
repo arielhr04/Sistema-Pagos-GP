@@ -862,6 +862,14 @@ const InvoicesPage = () => {
                   <p className="text-xs text-zinc-500">Vencimiento</p>
                   <p className="font-medium text-sm">{selectedInvoice.fecha_vencimiento.slice(0, 10)}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Registró</p>
+                  <p className="font-medium text-sm">{selectedInvoice.created_by_nombre || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Empresa</p>
+                  <p className="font-medium text-sm">{selectedInvoice.empresa_nombre || '-'}</p>
+                </div>
                 <div className="col-span-2">
                   <p className="text-xs text-zinc-500">Descripción</p>
                   <p className="text-sm">{selectedInvoice.descripcion_factura}</p>

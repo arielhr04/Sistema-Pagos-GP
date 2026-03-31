@@ -329,6 +329,10 @@ const SupervisorKanbanPage = () => {
                   <p className="font-semibold">{selectedInvoice.empresa_nombre}</p>
                 </div>
                 <div>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Registró</p>
+                  <p className="font-semibold">{selectedInvoice.created_by_nombre || '-'}</p>
+                </div>
+                <div>
                   <p className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Estatus</p>
                   <Badge className={STATUS_COLORS[selectedInvoice.estatus] || 'bg-zinc-100 text-zinc-800'}>
                     {selectedInvoice.estatus}
