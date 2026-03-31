@@ -16,6 +16,7 @@ import { PdfOcrSection } from '../components/PdfOcrSection';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
 import InvoiceRegistrationForm from '../components/InvoiceRegistrationForm';
+import LoadingState from '../components/LoadingState';
 import { parseDateOnly } from '../lib/date';
 import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
@@ -669,11 +670,7 @@ const DashboardPage = () => {
   }, [isSupervisor, fetchSupervisorPendingInvoices, fetchSupervisorStats]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
-      </div>
-    );
+    return <LoadingState sizeClass="h-12 w-12" />;
   }
 
   if (isUsuarioArea) {

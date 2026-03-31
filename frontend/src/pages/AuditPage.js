@@ -4,6 +4,7 @@ import { useTour } from '../context/TourContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import LoadingState from '../components/LoadingState';
 import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -164,9 +165,7 @@ const AuditPage = () => {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div>
-            </div>
+            <LoadingState sizeClass="h-10 w-10" />
           ) : logs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <History className="w-12 h-12 mb-4 text-zinc-300" />

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { TourProvider } from "./context/TourContext";
+import LoadingState from "./components/LoadingState";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
@@ -14,21 +15,13 @@ const AreasPage = lazy(() => import("./pages/AreasPage"));
 const SupervisorKanbanPage = lazy(() => import("./pages/SupervisorKanbanPage"));
 const Layout = lazy(() => import("./components/Layout"));
 
-const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-zinc-100">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
-  </div>
-);
+const PageLoader = () => <LoadingState fullScreen showBackground sizeClass="h-12 w-12" />;
 
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
-      </div>
-    );
+    return <LoadingState fullScreen showBackground sizeClass="h-12 w-12" />;
   }
   
   if (!user) {

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
+import LoadingState from '../components/LoadingState';
 import { parseDateOnly } from '../lib/date';
 import {
   Dialog,
@@ -239,11 +240,7 @@ const SupervisorKanbanPage = () => {
   }, [token]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
-      </div>
-    );
+    return <LoadingState sizeClass="h-10 w-10" />;
   }
 
   return (

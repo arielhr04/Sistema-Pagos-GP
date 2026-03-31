@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
+import LoadingState from '../components/LoadingState';
 import {
   Dialog,
   DialogContent,
@@ -252,9 +253,7 @@ const AreasPage = () => {
       <Card className="bg-white border border-zinc-200">
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div>
-            </div>
+            <LoadingState sizeClass="h-10 w-10" />
           ) : filteredAreas.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <Building2 className="w-12 h-12 mb-4 text-zinc-300" />

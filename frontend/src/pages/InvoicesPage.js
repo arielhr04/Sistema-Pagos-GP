@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import TreasuryReviewNotice from '../components/TreasuryReviewNotice';
 import InvoiceDownloadActions from '../components/InvoiceDownloadActions';
+import LoadingState from '../components/LoadingState';
 import { parseDateOnly } from '../lib/date';
 import { buildCacheKey, readApiCache, writeApiCache } from '../lib/apiCache';
 import {
@@ -729,9 +730,7 @@ const InvoicesPage = () => {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div>
-            </div>
+            <LoadingState sizeClass="h-10 w-10" />
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <FileText className="w-12 h-12 mb-4 text-zinc-300" />

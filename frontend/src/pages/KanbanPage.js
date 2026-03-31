@@ -4,6 +4,7 @@ import { useTour } from '../context/TourContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import axios from 'axios';
 import { toast } from 'sonner';
+import LoadingState from '../components/LoadingState';
 import { useDropzone } from 'react-dropzone';
 import {
   DndContext,
@@ -848,11 +849,7 @@ const KanbanPage = () => {
   const activeInvoice = activeId ? invoices.find((i) => i.id === activeId) : null;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
-      </div>
-    );
+    return <LoadingState sizeClass="h-12 w-12" />;
   }
 
   return (
