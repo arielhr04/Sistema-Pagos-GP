@@ -33,6 +33,28 @@ def get_areas(current_user: User = Depends(get_current_user), db: Session = Depe
     logger.info(f"✅ Áreas encontradas: {len(areas)}")
     return [AreaResponse(id=a.id, nombre=a.nombre, descripcion=a.descripcion) for a in areas]
 
+@router.put("/{area_id}", response_model=AreaResponse)
+def update_area(area_id: str, area_data: AreaCreate, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
+    area = db.query(Area).filter(Area.id == area_id).first()
+    if not area:
+        raise HTTPException(status_code=404, detail="Área no encontrada")
+    area.nombre = area_data.nombre
+    area.descripcion = area_data.descripcion
+    db.commit()
+    db.refresh(area)
+    return AreaResponse(id=area.id, nombre=area.nombre, descripcion=area.descripcion)
+
+@router.get("/mis-empresas", response_model=List[AreaResponse])
+def get_mis_empresas(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retorna las empresas asignadas al supervisor autenticado."""
+    from backend.models.supervisor_empresa import SupervisorEmpresa
+    if current_user.rol != "Supervisor":
+        raise HTTPException(status_code=403, detail="Solo supervisores pueden acceder a este endpoint")
+    relaciones = db.query(SupervisorEmpresa).filter(SupervisorEmpresa.supervisor_id == current_user.id).all()
+    empresa_ids = [r.empresa_id for r in relaciones]
+    areas = db.query(Area).filter(Area.id.in_(empresa_ids)).all()
+    return [AreaResponse(id=a.id, nombre=a.nombre, descripcion=a.descripcion) for a in areas]
+
 @router.delete("/{area_id}")
 def delete_area(area_id: str, current_user: User = Depends(require_roles(RoleEnum.ADMINISTRADOR)), db: Session = Depends(get_db)):
     area = db.query(Area).filter(Area.id == area_id).first()

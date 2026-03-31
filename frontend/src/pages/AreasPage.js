@@ -28,7 +28,8 @@ import {
   Plus, 
   Building2, 
   Trash2,
-  Search
+  Search,
+  Pencil
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -40,6 +41,9 @@ const AreasPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingArea, setEditingArea] = useState(null);
+  const [editFormData, setEditFormData] = useState({ nombre: '', descripcion: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -69,7 +73,7 @@ const AreasPage = () => {
       setAreas(response.data);
     } catch (error) {
       console.error('Error fetching areas:', error);
-      toast.error('Error al cargar áreas');
+      toast.error('Error al cargar empresas');
     } finally {
       setLoading(false);
     }
@@ -88,7 +92,7 @@ const AreasPage = () => {
     
     // Bloquear en modo tour
     if (demoMode) {
-      toast.error('No puedes crear áreas durante el tour de demostración');
+      toast.error('No puedes crear empresas durante el tour de demostración');
       return;
     }
 
@@ -96,13 +100,40 @@ const AreasPage = () => {
 
     try {
       await axios.post(`${API_URL}/api/areas`, formData, getAuthHeader());
-      toast.success('Área creada exitosamente');
+      toast.success('Empresa creada exitosamente');
       setDialogOpen(false);
       setFormData({ nombre: '', descripcion: '' });
       fetchAreas();
     } catch (error) {
       console.error('Error creating area:', error);
-      toast.error(error.response?.data?.detail || 'Error al crear área');
+      toast.error(error.response?.data?.detail || 'Error al crear empresa');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenEdit = (area) => {
+    setEditingArea(area);
+    setEditFormData({ nombre: area.nombre, descripcion: area.descripcion || '' });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (demoMode) {
+      toast.error('No puedes editar empresas durante el tour de demostración');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await axios.put(`${API_URL}/api/areas/${editingArea.id}`, editFormData, getAuthHeader());
+      toast.success('Empresa actualizada exitosamente');
+      setEditDialogOpen(false);
+      setEditingArea(null);
+      fetchAreas();
+    } catch (error) {
+      console.error('Error updating area:', error);
+      toast.error(error.response?.data?.detail || 'Error al actualizar empresa');
     } finally {
       setSubmitting(false);
     }
@@ -111,19 +142,19 @@ const AreasPage = () => {
   const handleDelete = async (areaId) => {
     // Bloquear en modo tour
     if (demoMode) {
-      toast.error('No puedes eliminar áreas durante el tour de demostración');
+      toast.error('No puedes eliminar empresas durante el tour de demostración');
       return;
     }
 
-    if (!window.confirm('¿Está seguro de eliminar esta área?')) return;
+    if (!window.confirm('¿Está seguro de eliminar esta empresa?')) return;
 
     try {
       await axios.delete(`${API_URL}/api/areas/${areaId}`, getAuthHeader());
-      toast.success('Área eliminada');
+      toast.success('Empresa eliminada');
       fetchAreas();
     } catch (error) {
       console.error('Error deleting area:', error);
-      toast.error(error.response?.data?.detail || 'Error al eliminar área');
+      toast.error(error.response?.data?.detail || 'Error al eliminar empresa');
     }
   };
 
@@ -132,9 +163,9 @@ const AreasPage = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black font-[Chivo] tracking-tight text-zinc-900">
-            Áreas
+            Empresas
           </h1>
-          <p className="text-zinc-500 mt-1">Administración de áreas organizacionales</p>
+          <p className="text-zinc-500 mt-1">Administración de empresas</p>
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -145,22 +176,22 @@ const AreasPage = () => {
               data-tour="btn-new-area"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Nueva Área
+              Nueva Empresa
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold font-[Chivo]">
-                Crear Nueva Área
+                Crear Nueva Empresa
               </DialogTitle>
               <DialogDescription>
-                Complete los datos para crear una nueva área organizacional.
+                Complete los datos para crear una nueva empresa.
               </DialogDescription>
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="nombre">Nombre del Área *</Label>
+                <Label htmlFor="nombre">Nombre de la Empresa *</Label>
                 <Input
                   id="nombre"
                   value={formData.nombre}
@@ -193,7 +224,7 @@ const AreasPage = () => {
                   disabled={submitting}
                   data-testid="area-submit-btn"
                 >
-                  {submitting ? 'Creando...' : 'Crear Área'}
+                  {submitting ? 'Creando...' : 'Crear Empresa'}
                 </Button>
               </div>
             </form>
@@ -227,8 +258,8 @@ const AreasPage = () => {
           ) : filteredAreas.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <Building2 className="w-12 h-12 mb-4 text-zinc-300" />
-              <p className="font-medium">No se encontraron áreas</p>
-              <p className="text-sm">Cree una nueva área para comenzar</p>
+              <p className="font-medium">No se encontraron empresas</p>
+              <p className="text-sm">Cree una nueva empresa para comenzar</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -253,15 +284,26 @@ const AreasPage = () => {
                         {area.descripcion || '-'}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(area.id)}
-                          className="text-red-600 hover:text-red-700"
-                          data-testid={`delete-area-${area.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenEdit(area)}
+                            className="text-zinc-600 hover:text-zinc-800"
+                            data-testid={`edit-area-${area.id}`}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(area.id)}
+                            className="text-red-600 hover:text-red-700"
+                            data-testid={`delete-area-${area.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -271,6 +313,54 @@ const AreasPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold font-[Chivo]">
+              Editar Empresa
+            </DialogTitle>
+            <DialogDescription>
+              Modifique los datos de la empresa.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-nombre">Nombre de la Empresa *</Label>
+              <Input
+                id="edit-nombre"
+                value={editFormData.nombre}
+                onChange={(e) => setEditFormData({ ...editFormData, nombre: e.target.value })}
+                placeholder="Ej: Finanzas"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-descripcion">Descripción (opcional)</Label>
+              <Textarea
+                id="edit-descripcion"
+                value={editFormData.descripcion}
+                onChange={(e) => setEditFormData({ ...editFormData, descripcion: e.target.value })}
+                placeholder="Descripción de la empresa..."
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={submitting}
+              >
+                {submitting ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

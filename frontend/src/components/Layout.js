@@ -40,12 +40,13 @@ const Layout = () => {
   };
 
   const navItems = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Administrador', 'Tesorero', 'Usuario Área'] },
-    { to: '/invoices', icon: FileText, label: 'Facturas', roles: ['Administrador', 'Tesorero', 'Usuario Área'] },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Administrador', 'Tesorero', 'Usuario Área', 'Supervisor'] },
+    { to: '/invoices', icon: FileText, label: 'Facturas', roles: ['Administrador', 'Tesorero', 'Usuario Área', 'Supervisor'] },
     // Kanban solo visible en desktop (tablets y pantallas grandes)
     { to: '/kanban', icon: Columns3, label: 'Panel Kanban', roles: ['Administrador', 'Tesorero'], mobileOnly: false, desktopOnly: true },
+    { to: '/supervisor-kanban', icon: Columns3, label: 'Panel Empresas', roles: ['Supervisor'], desktopOnly: true },
     { to: '/users', icon: Users, label: 'Usuarios', roles: ['Administrador'] },
-    { to: '/areas', icon: Building2, label: 'Áreas', roles: ['Administrador'] },
+    { to: '/areas', icon: Building2, label: 'Empresas', roles: ['Administrador'] },
     { to: '/audit', icon: History, label: 'Auditoría', roles: ['Administrador'] },
   ];
 

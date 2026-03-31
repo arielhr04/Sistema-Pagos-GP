@@ -11,6 +11,7 @@ const KanbanPage = lazy(() => import("./pages/KanbanPage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
 const AuditPage = lazy(() => import("./pages/AuditPage"));
 const AreasPage = lazy(() => import("./pages/AreasPage"));
+const SupervisorKanbanPage = lazy(() => import("./pages/SupervisorKanbanPage"));
 const Layout = lazy(() => import("./components/Layout"));
 
 const PageLoader = () => (
@@ -69,6 +70,11 @@ function AppRoutes() {
         <Route path="areas" element={
           <ProtectedRoute roles={["Administrador"]}>
             <AreasPage />
+          </ProtectedRoute>
+        } />
+        <Route path="supervisor-kanban" element={
+          <ProtectedRoute roles={["Supervisor"]}>
+            <SupervisorKanbanPage />
           </ProtectedRoute>
         } />
         <Route path="audit" element={

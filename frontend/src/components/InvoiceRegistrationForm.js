@@ -51,6 +51,7 @@ const InvoiceRegistrationForm = ({
   const [xmlFile, setXmlFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedAreaForSubmit, setSelectedAreaForSubmit] = useState(selectedArea || null);
+  const [supervisorAreas, setSupervisorAreas] = useState([]);
   const { extractedData, extractionStatus, isExtracting, extractFromXml, clearExtraction } = useInvoiceExtraction();
 
   const getAuthHeader = useCallback(() => ({
@@ -65,6 +66,18 @@ const InvoiceRegistrationForm = ({
       'Content-Type': 'multipart/form-data',
     },
   }), [token]);
+
+  // Para supervisores, cargar solo sus empresas asignadas
+  useEffect(() => {
+    if (user?.rol === 'Supervisor' && token) {
+      axios.get(`${API_URL}/api/areas/mis-empresas`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).then(res => setSupervisorAreas(res.data)).catch(() => {});
+    }
+  }, [user?.rol, token]);
+
+  // Lista de empresas según rol
+  const areasToShow = user?.rol === 'Supervisor' ? supervisorAreas : areas;
 
   const isValidPdfFile = useCallback((file) => {
     if (!file) return false;
@@ -292,7 +305,7 @@ const InvoiceRegistrationForm = ({
                     <SelectValue placeholder="Seleccionar empresa..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {areas.map((area) => (
+                    {areasToShow.map((area) => (
                       <SelectItem key={area.id} value={area.id}>
                         {area.nombre}
                       </SelectItem>
