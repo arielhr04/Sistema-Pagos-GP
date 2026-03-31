@@ -202,6 +202,20 @@ def get_invoices(
 
     if current_user.rol == RoleEnum.USUARIO_AREA.value:
         query = query.filter(Invoice.created_by == current_user.id)
+    elif current_user.rol == RoleEnum.SUPERVISOR.value:
+        supervisor_empresas = db.query(SupervisorEmpresa).filter(
+            SupervisorEmpresa.supervisor_id == current_user.id
+        ).all()
+        empresa_ids = [se.empresa_id for se in supervisor_empresas]
+        if not empresa_ids:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "total_pages": 1,
+            }
+        query = query.filter(Invoice.empresa_factura.in_(empresa_ids))
     if estatus:
         query = query.filter(Invoice.estatus == estatus)
     if area:
@@ -266,6 +280,17 @@ def get_invoice(invoice_id: str, current_user: User = Depends(get_current_user),
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    if current_user.rol == RoleEnum.USUARIO_AREA.value and inv.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="No tiene permisos para ver esta factura")
+
+    if current_user.rol == RoleEnum.SUPERVISOR.value:
+        supervisor_empresa = db.query(SupervisorEmpresa).filter(
+            SupervisorEmpresa.supervisor_id == current_user.id,
+            SupervisorEmpresa.empresa_id == inv.empresa_factura,
+        ).first()
+        if not supervisor_empresa:
+            raise HTTPException(status_code=403, detail="No tiene permisos para ver esta factura")
 
     empresa_obj = db.query(Area).filter(Area.id == inv.empresa_factura).first()
     user_obj = db.query(User).filter(User.id == inv.created_by).first()

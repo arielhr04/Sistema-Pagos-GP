@@ -152,7 +152,7 @@ const SupervisorKanbanPage = () => {
 
       // Obtener solo pendientes de autorización y agrupar por empresa.
       const pendingRes = await axios.get(
-        `${API_URL}/api/invoices/supervisor/pending?limit=200`,
+        `${API_URL}/api/invoices/supervisor/pending?limit=100`,
         getAuthHeader()
       );
       const pendingItems = pendingRes.data || [];

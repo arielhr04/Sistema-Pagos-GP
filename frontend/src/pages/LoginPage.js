@@ -48,8 +48,12 @@ const LoginPage = () => {
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
           <CardHeader className="text-center pb-2">
             <img 
-              src="/images/logo.png" 
+              src="/images/Logo-GGP.png"
               alt="Logo Empresa" 
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/images/logo.png';
+              }}
               className="mx-auto mb-4 h-41 w-41 object-contain drop-shadow-lg"
             />
             <CardTitle className="text-2xl font-black font-[Chivo] tracking-tight text-zinc-900">

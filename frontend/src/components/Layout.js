@@ -80,8 +80,12 @@ const Layout = () => {
             {/* Mobile: Logo grande centrado sin texto */}
             <div className="lg:hidden flex flex-col items-center w-full">
               <img 
-                src="/images/logo.png" 
+                src="/images/Logo-GGP.png"
                 alt="Logo" 
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/images/logo.png';
+                }}
                 className="w-20 h-20 object-contain"
               />
             </div>
@@ -89,8 +93,12 @@ const Layout = () => {
             {/* Desktop: Logo + Título lado a lado */}
             <div className="hidden lg:flex lg:items-center lg:gap-4 lg:w-full">
               <img 
-                src="/images/logo.png" 
+                src="/images/Logo-GGP.png"
                 alt="Logo" 
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/images/logo.png';
+                }}
                 className="w-20 h-20 object-contain flex-shrink-0"
               />
               <div>
